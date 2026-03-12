@@ -36,6 +36,7 @@ public class SaveManager
     private readonly string _saveDir;
     private readonly string _cellsDir;
     private readonly string _npcsDir;
+    private readonly string _itemsDir;
 
     private DateTime _lastSaveUtc = DateTime.MinValue;
     private static readonly TimeSpan SaveInterval = TimeSpan.FromMinutes(5);
@@ -45,10 +46,12 @@ public class SaveManager
         _saveDir  = saveDir;
         _cellsDir = Path.Combine(saveDir, "cells");
         _npcsDir  = Path.Combine(saveDir, "npcs");
+        _itemsDir = Path.Combine(saveDir, "items");
 
         Directory.CreateDirectory(_saveDir);
         Directory.CreateDirectory(_cellsDir);
         Directory.CreateDirectory(_npcsDir);
+        Directory.CreateDirectory(_itemsDir);
     }
 
     // -------------------------------------------------------------------------
@@ -112,6 +115,12 @@ public class SaveManager
     public void SaveNpc(NpcSaveData data) =>
         WriteJson(NpcPath(data.Id), data);
 
+    public void DeleteNpc(string npcId)
+    {
+        var path = NpcPath(npcId);
+        if (File.Exists(path)) File.Delete(path);
+    }
+
     public NpcSaveData? LoadNpc(string npcId)
     {
         var path = NpcPath(npcId);
@@ -123,6 +132,28 @@ public class SaveManager
         foreach (var file in Directory.EnumerateFiles(_npcsDir, "*.json"))
         {
             var data = ReadJson<NpcSaveData>(file);
+            if (data is not null) yield return data;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Items
+    // -------------------------------------------------------------------------
+
+    public void SaveItem(ItemSaveData data) =>
+        WriteJson(ItemPath(data.Id), data);
+
+    public void DeleteItem(string itemId)
+    {
+        var path = ItemPath(itemId);
+        if (File.Exists(path)) File.Delete(path);
+    }
+
+    public IEnumerable<ItemSaveData> LoadAllItems()
+    {
+        foreach (var file in Directory.EnumerateFiles(_itemsDir, "*.json"))
+        {
+            var data = ReadJson<ItemSaveData>(file);
             if (data is not null) yield return data;
         }
     }
@@ -167,6 +198,9 @@ public class SaveManager
 
     private string NpcPath(string npcId) =>
         Path.Combine(_npcsDir, $"{npcId}.json");
+
+    private string ItemPath(string itemId) =>
+        Path.Combine(_itemsDir, $"{itemId.Replace("/", "_")}.json");
 
     private void WriteJson<T>(string path, T data)
     {

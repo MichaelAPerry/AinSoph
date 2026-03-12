@@ -52,6 +52,14 @@ public class TribeManager
 
         var spouse = new NpcBrain(npcId, decan, llm, nowUtc);
 
+        // Roll birth impairment
+        var spouseData = new AinSoph.Data.NpcSaveData();
+        AinSoph.NPC.BirthImpairment.Roll(spouseData);
+        spouse.BrokenMove = spouseData.BrokenMove;
+        spouse.BrokenSee  = spouseData.BrokenSee;
+        spouse.BrokenHear = spouseData.BrokenHear;
+        spouse.BrokenTalk = spouseData.BrokenTalk;
+
         // Seed the spouse's memory with the player's description of them
         spouse.Memory.Write(MemorySlot.Thought,
             $"I am {name}. {description}");
@@ -92,6 +100,14 @@ public class TribeManager
         var npcId = $"progeny:{_player.Id}:{Guid.NewGuid():N}";
 
         var progeny = new NpcBrain(npcId, decan, llm, nowUtc);
+
+        // Roll birth impairment
+        var progenyData = new AinSoph.Data.NpcSaveData();
+        AinSoph.NPC.BirthImpairment.Roll(progenyData);
+        progeny.BrokenMove = progenyData.BrokenMove;
+        progeny.BrokenSee  = progenyData.BrokenSee;
+        progeny.BrokenHear = progenyData.BrokenHear;
+        progeny.BrokenTalk = progenyData.BrokenTalk;
 
         // Lineage — append-only origin record
         // Stored in action memory as the closest equivalent until a lineage field is added

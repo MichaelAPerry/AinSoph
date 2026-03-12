@@ -31,6 +31,7 @@ public class ItemSaveData
     public string Id            { get; set; } = string.Empty;
     public string Name          { get; set; } = string.Empty;
     public string Type          { get; set; } = string.Empty;
+    public string Description   { get; set; } = string.Empty;
     public bool   Edible        { get; set; }
     public float? LifespanHours { get; set; }
     public float? AgeHours      { get; set; } // how long it's been in the world
@@ -59,6 +60,7 @@ public class NpcSaveData
 {
     public string Id      { get; set; } = string.Empty;
     public string DecanId { get; set; } = string.Empty;
+    public string Name    { get; set; } = string.Empty;
     public string CellId  { get; set; } = string.Empty;
     public int    TileX   { get; set; }
     public int    TileY   { get; set; }
@@ -73,6 +75,12 @@ public class NpcSaveData
     // Survival state
     public DateTime LastAteUtc   { get; set; }
     public DateTime LastSleptUtc { get; set; }
+
+    // Birth impairment — true = broken at birth (rolled once, never changes)
+    public bool BrokenMove  { get; set; }
+    public bool BrokenSee   { get; set; }
+    public bool BrokenHear  { get; set; }
+    public bool BrokenTalk  { get; set; }
 
     // Lineage — append only, never edited
     public List<string> Lineage { get; set; } = new();

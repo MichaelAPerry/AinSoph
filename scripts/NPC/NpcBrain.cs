@@ -22,6 +22,12 @@ public class NpcBrain
     public NpcState      State     { get; private set; } = NpcState.Idle;
     public SurvivalTracker Survival { get; }
 
+    // Birth impairment — rolled once, never changes
+    public bool BrokenMove  { get; set; }
+    public bool BrokenSee   { get; set; }
+    public bool BrokenHear  { get; set; }
+    public bool BrokenTalk  { get; set; }
+
     private string _cellId = string.Empty;
     public string CellId() => _cellId;
     public void SetCellId(string cellId) => _cellId = cellId;

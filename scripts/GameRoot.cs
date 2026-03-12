@@ -39,6 +39,7 @@ public partial class GameRoot : Node
     public static TribeManager?        Tribe               { get; private set; }
     public static TribuneCouncil?      Council             { get; private set; }
     public static InteractionResolver? Interactions        { get; private set; }
+    public static WorldItemRegistry?   Items               { get; private set; }
 
     public static List<NpcBrain>       LiveNpcs            { get; } = new();
     public static List<AnimalBrain>    LiveAnimals         { get; } = new();
@@ -110,6 +111,10 @@ public partial class GameRoot : Node
         GD.Print($"GameRoot: altar placed at {Altar.CellId} " +
                  $"[{Altar.TileX},{Altar.TileY}] in {Altar.Biome}");
 
+        // 4b. Item registry
+        Items = new WorldItemRegistry(Save);
+        Items.LoadAll();
+
         // 5. NPC queue
         NpcQueue = new NpcTickQueue();
 
@@ -163,6 +168,10 @@ public partial class GameRoot : Node
             brain.Memory.Write(NPC.MemorySlot.Thought, npcData.MemoryThought);
             brain.Memory.Write(NPC.MemorySlot.Feeling, npcData.MemoryFeeling);
             brain.Memory.Write(NPC.MemorySlot.Action,  npcData.MemoryAction);
+            brain.BrokenMove = npcData.BrokenMove;
+            brain.BrokenSee  = npcData.BrokenSee;
+            brain.BrokenHear = npcData.BrokenHear;
+            brain.BrokenTalk = npcData.BrokenTalk;
             brain.OnDeath += OnNpcDeath;
 
             LiveNpcs.Add(brain);
@@ -271,8 +280,11 @@ public partial class GameRoot : Node
 
         var nowUtc = DateTime.UtcNow;
 
+        // Decay items — age all living items by 1 hour
+        Items?.TickDecay(1f);
+
         // Advance animal survival
-        foreach (var animal in LiveAnimals)
+        foreach (var animal in LiveAnimals.ToList())
         {
             var situation = BuildAnimalSituation(animal);
             animal.Tick(situation, nowUtc);
@@ -284,6 +296,21 @@ public partial class GameRoot : Node
         // Drain NPC queue — one NPC per call, queue runs continuously
         if (NpcQueue is not null)
             _ = NpcQueue.ProcessNextAsync(BuildNpcSituation, _cts.Token);
+
+        // Player survival — check warnings
+        if (Player != null)
+        {
+            var result = Player.Survival.Tick(nowUtc);
+            if (result.HungerWarning) _worldScene?.ShowWorldText("⚠ You must eat within the hour. ⚠");
+            if (result.SleepWarning)  _worldScene?.ShowWorldText("⚠ You must sleep within the hour. ⚠");
+            if (result.IsDead)
+            {
+                var body = Items?.SpawnBody(Player.Name, Player.TileX, Player.TileY);
+                _worldScene?.ShowWorldText("You have died.");
+                GD.Print($"GameRoot: player '{Player.Name}' died");
+                // TODO: trigger new character creation flow
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -293,20 +320,18 @@ public partial class GameRoot : Node
     private void OnMorningManna(
         Dictionary<string, List<(int TileX, int TileY)>> spawned)
     {
-        if (Grid is null) return;
+        if (Items is null) return;
 
+        int total = 0;
         foreach (var (cellKey, tiles) in spawned)
         {
-            ParseCellId(cellKey, out var gx, out var gy);
-            var cell = Grid.GetIfLoaded(gx, gy);
-            if (cell is null) continue;
-
             foreach (var (tx, ty) in tiles)
             {
-                var mannaId = $"manna:{cellKey}:{tx},{ty}:{DateTime.UtcNow.Ticks}";
-                cell.Tiles[tx, ty].ItemIds.Add(mannaId);
+                Items.SpawnManna(tx, ty);
+                total++;
             }
         }
+        GD.Print($"GameRoot: morning manna — {total} portions spawned");
     }
 
     // -------------------------------------------------------------------------
@@ -317,8 +342,56 @@ public partial class GameRoot : Node
     {
         LiveNpcs.Remove(npc);
         NpcQueue?.Remove(npc.NpcId);
-        GD.Print($"GameRoot: NPC {npc.NpcId} died — body remains in {npc.CellId()}");
-        // Body-as-item placement handled by scene layer
+
+        // Drop body as a world item at last known position
+        ParseCellId(npc.CellId(), out var cx, out var cy);
+        var cell = Grid?.GetIfLoaded(cx, cy);
+        int tileX = cell != null ? cx * 8 : 0;
+        int tileY = cell != null ? cy * 8 : 0;
+        Items?.SpawnBody(npc.Decan.Name, tileX, tileY);
+
+        // Delete NPC save file
+        Save?.DeleteNpc(npc.NpcId);
+        _worldScene?.RemoveNpc(npc.NpcId);
+
+        GD.Print($"GameRoot: {npc.Decan.Name} died at {npc.CellId()} — body placed");
+    }
+
+    private void OnAnimalDeath(AnimalBrain animal)
+    {
+        LiveAnimals.Remove(animal);
+        Items?.SpawnBody(animal.Name, animal.TileX, animal.TileY);
+        SpawnAnimalPair(animal.AnimalType, animal.TileX, animal.TileY);
+        GD.Print($"GameRoot: {animal.Name} died at {animal.TileX},{animal.TileY} — 2 spawned");
+    }
+
+    private void SpawnAnimalPair(AnimalType animalType, int originTileX, int originTileY)
+    {
+        var offsets = new (int dx, int dy)[]
+            { (1,0), (-1,0), (0,1), (0,-1), (1,1), (-1,1), (1,-1), (-1,-1) };
+
+        // Derive cell from tile coords
+        int cx = originTileX < 0 ? (originTileX - 7) / 8 : originTileX / 8;
+        int cy = originTileY < 0 ? (originTileY - 7) / 8 : originTileY / 8;
+        string cellId = $"{cx},{cy}";
+
+        int spawned = 0;
+        foreach (var (dx, dy) in offsets)
+        {
+            if (spawned >= 2) break;
+            var brain = new AnimalBrain(
+                Guid.NewGuid().ToString("N")[..8],
+                animalType.ToString(),
+                animalType,
+                cellId,
+                originTileX + dx,
+                originTileY + dy,
+                DateTime.UtcNow
+            );
+            brain.OnDeath += OnAnimalDeath;
+            LiveAnimals.Add(brain);
+            spawned++;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -381,16 +454,18 @@ public partial class GameRoot : Node
                     CellId = cell.CellId
                 });
 
-            // Items
-            foreach (var tile in cell.AllTiles())
-            foreach (var itemId in tile.ItemIds)
-                items.Add(new NearbyItem
-                {
-                    Id     = itemId,
-                    Name   = itemId.StartsWith("manna") ? "manna" : itemId,
-                    Edible = itemId.StartsWith("manna"),
-                    CellId = cell.CellId
-                });
+            // Items from WorldItemRegistry
+            if (Items != null)
+            {
+                foreach (var worldItem in Items.InCell(cx + (dx), cy + (dy)))
+                    items.Add(new NearbyItem
+                    {
+                        Id     = worldItem.Id,
+                        Name   = worldItem.Name,
+                        Edible = worldItem.Edible,
+                        CellId = cell.CellId
+                    });
+            }
         }
 
         return new SituationContext
@@ -486,7 +561,8 @@ public partial class GameRoot : Node
             Save.SaveNpc(new Data.NpcSaveData
             {
                 Id            = npc.NpcId,
-                DecanId       = npc.Decan.Id,
+                DecanId       = npc.Decan.Id.ToString(),
+                Name          = npc.Decan.Name,
                 CellId        = npc.CellId(),
                 State         = npc.State.ToString().ToLower(),
                 MemoryWill    = npc.Memory.Will,
@@ -494,7 +570,11 @@ public partial class GameRoot : Node
                 MemoryFeeling = npc.Memory.Feeling,
                 MemoryAction  = npc.Memory.Action,
                 LastAteUtc    = npc.Survival.LastAteUtc,
-                LastSleptUtc  = npc.Survival.LastSleptUtc
+                LastSleptUtc  = npc.Survival.LastSleptUtc,
+                BrokenMove    = npc.BrokenMove,
+                BrokenSee     = npc.BrokenSee,
+                BrokenHear    = npc.BrokenHear,
+                BrokenTalk    = npc.BrokenTalk,
             });
         }
 
@@ -613,14 +693,77 @@ public partial class GameRoot : Node
 
     private async void OnAltarPetition(string petition)
     {
-        if (_worldScene == null || Council == null) return;
-        var verdict = await Council.HearPetitionAsync(petition, Player?.Skills, _cts.Token);
+        if (_worldScene == null || Council == null || Player == null) return;
+
+        // Parse free-form prayer into a structured submission
+        var parser     = new Skills.CouncilSubmissionParser();
+        var submission = parser.Parse(petition);
+
+        CouncilVerdict verdict;
+        if (submission != null)
+        {
+            submission.CreatedBy = Player.Id;
+            verdict = await Council.SubmitAsync(submission, _cts.Token);
+        }
+        else
+        {
+            // Unparseable prayer — Council hears it; all three seats speak; nothing enters the world
+            var oblique = new Council.CouncilSubmission
+            {
+                Type        = "unknown",
+                Name        = petition[..Math.Min(40, petition.Length)],
+                Description = petition,
+                CreatedBy   = Player.Id,
+            };
+            verdict = await Council.SubmitAsync(oblique, _cts.Token);
+        }
+
+        // Deliver all three homiilies to the player regardless of outcome
         var sb = new System.Text.StringBuilder();
-        foreach (var response in verdict.SeatResponses)
+        foreach (var response in verdict.Responses)
+        {
+            sb.AppendLine($"[ {response.Seat.ToUpper()} — {response.Vote.ToUpper()} ]");
             sb.AppendLine(response.Homily);
+            sb.AppendLine();
+        }
         _worldScene.SetDialogueSpeech(sb.ToString().Trim());
-        if (verdict.Approved)
-            GD.Print($"GameRoot: Council approved — {verdict.GrantSummary}");
+
+        // Apply approved content to the world
+        if (verdict.Approved && verdict.Submission != null)
+        {
+            var sub = verdict.Submission;
+            GD.Print($"GameRoot: Council approved '{sub.Name}' ({sub.Type}) for {Player.Name}");
+
+            switch (sub.Type.ToLower())
+            {
+                case "skill":
+                    // Add as a custom skill id; HUD will show it on next refresh
+                    Player.SkillIds.Add(sub.Name.ToLower().Replace(" ", "_"));
+                    _worldScene.ShowWorldText($"The Council grants: {sub.Name}");
+                    SaveAll();
+                    break;
+
+                case "item":
+                    // Spawn the item near the player at the altar tile
+                    Items?.Spawn(
+                        name:        sub.Name,
+                        type:        "crafted",
+                        tileX:       Player.TileX,
+                        tileY:       Player.TileY,
+                        edible:      sub.Properties.ContainsKey("edible"),
+                        description: sub.Description
+                    );
+                    _worldScene.ShowWorldText($"The Council grants: {sub.Name}");
+                    SaveAll();
+                    break;
+
+                case "rule":
+                    // Rules are logged — full rule engine is future scope
+                    GD.Print($"GameRoot: rule '{sub.Name}' approved — '{sub.Description}'");
+                    _worldScene.ShowWorldText($"The Council accepts the rule: {sub.Name}");
+                    break;
+            }
+        }
     }
 
     private static void ParseCellId(string cellId, out int x, out int y)
