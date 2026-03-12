@@ -190,6 +190,47 @@ public partial class GameRoot : Node
 
         IsReady = true;
         GD.Print("Ain Soph — ready");
+
+        // 10. Scene layer — load WorldScene and wire all systems
+        var sceneRes = GD.Load<PackedScene>("res://scenes/world/WorldScene.tscn");
+        if (sceneRes != null)
+        {
+            var scene = sceneRes.Instantiate<WorldScene>();
+            scene.Grid        = Grid;
+            scene.Clock       = new WorldClock();
+            scene.Player      = Player;
+            scene.SaveMgr     = Save;
+            scene.AltarCellId = Altar?.CellId ?? "";
+
+            scene.PlayerSpoke    += OnPlayerSpoke;
+            scene.AltarPetition  += OnAltarPetition;
+
+            AddChild(scene);
+            scene.InitSystems();
+
+            // Spawn initial NPCs visible to player
+            ParseCellId(Player.CellId, out var cpx, out var cpy);
+            foreach (var npc in LiveNpcs)
+            {
+                var ncell = npc.CellId();
+                if (!string.IsNullOrEmpty(ncell))
+                {
+                    ParseCellId(ncell, out var nx, out var ny);
+                    if (System.Math.Abs(nx - cpx) <= 3 && System.Math.Abs(ny - cpy) <= 3)
+                    {
+                        var nd = Save?.LoadNpc(npc.NpcId);
+                        if (nd != null) scene.UpsertNpc(nd);
+                    }
+                }
+            }
+
+            _worldScene = scene;
+            GD.Print("GameRoot: WorldScene ready");
+        }
+        else
+        {
+            GD.PrintErr("GameRoot: could not load WorldScene.tscn");
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -479,6 +520,42 @@ public partial class GameRoot : Node
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    // ── WorldScene reference ──────────────────────────────────────────────
+    private WorldScene? _worldScene;
+
+    private void OnPlayerSpoke(string npcId, string text)
+    {
+        // Opening a dialogue: subscribe to the NPC's next decision event
+        var npc = LiveNpcs.Find(n => n.NpcId == npcId);
+        if (npc == null || _worldScene == null) return;
+
+        // One-shot: update dialogue when the NPC's next think produces speech
+        void Handler(NpcBrain brain, NpcDecision decision)
+        {
+            npc.OnDecision -= Handler;
+            var reply = string.IsNullOrEmpty(decision.Speech) ? "..." : decision.Speech;
+            _worldScene.SetDialogueSpeech(reply);
+            _worldScene.SetNpcState(npcId, npc.State);
+        }
+
+        npc.OnDecision += Handler;
+
+        // Prioritize this NPC so it thinks soon
+        NpcQueue?.Prioritize(new[] { npcId });
+    }
+
+    private async void OnAltarPetition(string petition)
+    {
+        if (_worldScene == null || Council == null) return;
+        var verdict = await Council.HearPetitionAsync(petition, Player?.Skills, _cts.Token);
+        var sb = new System.Text.StringBuilder();
+        foreach (var response in verdict.SeatResponses)
+            sb.AppendLine(response.Homily);
+        _worldScene.SetDialogueSpeech(sb.ToString().Trim());
+        if (verdict.Approved)
+            GD.Print($"GameRoot: Council approved — {verdict.GrantSummary}");
+    }
 
     private static void ParseCellId(string cellId, out int x, out int y)
     {
