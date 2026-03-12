@@ -23,7 +23,7 @@ The rules in this document are the founding physics. Everything begins here.
 
 **Safe sleep.** A cave is the only safe location. A character inside a cave is sleeping safely. A cave can be occupied by one character at a time — entering claims it, leaving frees it immediately.
 
-**Exposed sleep.** Any sleep outside a cave is exposed. An exposed sleeping character is vulnerable to kill rolls from any entity that decides to initiate one.
+**Exposed sleep.** Any sleep outside a cave is exposed. An exposed sleeping character is vulnerable to Reap rolls from any entity that decides to initiate one.
 
 **Logout.** When a player logs out, their character remains in the world. If they are not inside a cave, they are considered sleeping exposed. They can be killed while offline. The world does not pause.
 
@@ -41,13 +41,15 @@ The body follows item rules. It is physical. It can be interacted with. What hap
 
 ### KILL
 
-Kill is the fifth primitive skill. Every living thing — PC, NPC, animal — is born with it.
+Reap is the fifth primitive skill. Every living thing — PC, NPC, animal — is born with it.
 
-**Resolution:** Both attacker and defender roll d100. The attacker must roll equal to or under their kill number. The defender must roll equal to or under their kill number to resist or flee. Ties go to the defender.
+Reap covers both killing and consuming. Against a living target it initiates Reap resolution. Against an edible item it satisfies the daily eat requirement. Same act. The world makes no distinction.
 
-**Base kill numbers:**
+**Resolution:** Both attacker and defender roll d100. The attacker must roll equal to or under their Reap number. The defender must roll equal to or under their Reap number to resist or flee. Ties go to the defender.
 
-| Entity | Base kill number |
+**Base Reap numbers:**
+
+| Entity | Base Reap number |
 |--------|-----------------|
 | PC | 50 |
 | NPC | 50 ± decan modifier |
@@ -133,7 +135,7 @@ Kill is the fifth primitive skill. Every living thing — PC, NPC, animal — is
 | Baten Kaitos | 0 |
 | Ain Soph Aour | 0 |
 
-Skills can modify kill rolls in future. That extension is built by players and NPCs through the council.
+Skills can modify Reap rolls in future. That extension is built by players and NPCs through the council.
 
 ---
 
@@ -187,9 +189,17 @@ All created content — skills, items, rules, biomes — passes through the Triu
 
 ### MIGRATION
 
-When an NPC migrates to another grid cell or player sphere, their decan and all four memory slots travel with them intact.
+When an NPC migrates to another world via a route, their decan and all four memory slots travel with them intact.
 
 The original player has no knowledge of or control over an NPC that has left their sphere.
+
+A migrated NPC is a foreigner in the new world. Permanently. There is no path to full standing.
+
+Foreigners run on a sandboxed LLM instruction set — minimal context, no creation pipeline access. Regardless of what skills the NPC held in their origin world, on arrival all prior skills are suspended and do not recover. The engine enforces this at the decision-application layer, not just in the prompt.
+
+Foreigners can Move, See, Hear, Talk, and Reap edible items. They cannot kill. They cannot pray to the Council. They still require food and sleep under the same rules as all living things.
+
+Foreigner status is permanent. It is the condition of having crossed.
 
 ---
 

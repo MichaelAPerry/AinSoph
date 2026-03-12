@@ -7,13 +7,13 @@
 
 A skill is anything a character can do.
 
-Skills are not hardcoded beyond the four primitives. Everything else is created by players and NPCs and enters the world through the Triune Council.
+Skills are not hardcoded beyond the six primitives. Everything else is created by players and NPCs and enters the world through the Triune Council.
 
 PCs and NPCs operate under identical skill constraints.
 
 ---
 
-### THE FOUR PRIMITIVES
+### THE SIX PRIMITIVES
 
 Every PC and NPC is born with these four skills. They cannot be created. They can be broken or lost.
 
@@ -23,8 +23,10 @@ Every PC and NPC is born with these four skills. They cannot be created. They ca
 | See | Visual perception |
 | Hear | Audio perception |
 | Talk | Communication |
-| Kill | The capacity to end a life. Resolved by d100 roll. See RULES.md. |
+| Reap | The capacity to end a life or consume. Covers killing and eating both. Resolved by d100 roll for living targets. See RULES.md. |
 | Pray | Reaches the Triune Council. At first does nothing visible. Discovered, not explained. |
+
+Reap covers both destruction and consumption. Reaping a living entity is a kill. Reaping manna is eating. The same act — taking something from the world. The world makes no moral distinction.
 
 When a primitive is broken or lost, the character is limited in that dimension. Limitation drives invention — new skills and items emerge to compensate, substitute, or route around the absence.
 
@@ -36,7 +38,7 @@ A primitive skill can only be absent from birth. Death is the only way to perman
 
 | Type | Definition | Example |
 |------|-----------|---------|
-| **Primitive** | Born with it. Can be broken or lost. | Move, See, Hear, Talk |
+| **Primitive** | Born with it. Can be broken or lost. | Move, See, Hear, Talk, Reap, Pray |
 | **Composite** | Built from two or more existing skills. | Weasel Hunting (Move + Hear) |
 | **Substitute** | Replaces a broken or absent primitive. | Cart (substitutes Move) |
 | **Extension** | Amplifies an existing primitive beyond its base. | Telescope (extends See) |
@@ -50,6 +52,8 @@ Skills can be created whole cloth with no prerequisites. Prerequisites are not r
 ### SURVIVAL REQUIREMENTS
 
 Eat and sleep are not skills. They are world-enforced survival requirements.
+
+Eating is satisfied by using Reap on an edible item — manna, or any edible item that exists in the world. There is no separate Eat action.
 
 They apply equally to PCs and NPCs.
 
@@ -120,6 +124,33 @@ Time is always a potential cost. Other costs (items consumed, prerequisites requ
 | lineage | string | Append-only record of who created and modified this skill. |
 
 ---
+
+
+---
+
+### FOREIGNERS
+
+An NPC that has migrated from another world via a route is a foreigner. Permanently.
+
+Foreigners operate under a reduced primitive set regardless of what skills they held in their origin world. On arrival, all prior skills are suspended. They cannot be recovered. They do not carry over.
+
+**Foreigner primitive set:**
+
+| Skill | Available to foreigner |
+|-------|----------------------|
+| Move | Yes |
+| See | Yes |
+| Hear | Yes |
+| Talk | Yes |
+| Reap (kill) | No — cannot kill or initiate kill resolution against living entities |
+| Reap (eat) | Yes — Reap on non-living edible items is permitted |
+| Pray | No — cannot reach the Council |
+
+Foreigners still require food and sleep. Reap on manna and other edible items works normally.
+
+Foreigners may speak of their origin world, their prior skills, their loss. The LLM operates under a sandboxed instruction set — minimal context, no creation pipeline, no kill resolution. The world does not silence them. It only constrains what they can do.
+
+Foreigner status is permanent. There is no path to full standing in the new world. The Council cannot grant it. No skill can substitute it. It is the condition of having crossed.
 
 ### PRIMITIVE SKILL IMPAIRMENT AT BIRTH
 
