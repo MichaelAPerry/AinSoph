@@ -82,9 +82,41 @@ Density is the fraction of tiles that receive one manna item at morning spawn.
 
 ---
 
-### PLAYER START
+### THE ALTAR
 
-New players spawn in a random cell within 3 cells of a cave. No continuity with any previous character.
+One altar exists per world. Placed at generation in a random biome, random cell.
+
+The altar is how the Triune Council is reached. A player must find it physically — it is not marked on any map.
+
+At the altar a player can Pray. The submission is free-form text. The engine parses it into the Council's required format. If the submission does not map cleanly, the Council rejects it in parable. The format is never revealed. The altar is the discovery.
+
+---
+
+### INTERACTION
+
+The player clicks an item or entity and receives all available primitive skills as options.
+
+Any primitive can be applied to any target. The engine resolves what happens. Nonsensical combinations produce environmental and oblique responses — the world notices, but nothing useful occurs.
+
+---
+
+### FOG OF WAR
+
+The player sees their current cell clearly. Beyond vision range the world is dark.
+
+Vision range: 3 cells in daylight, 1 at night.
+
+Fog of war is always active beyond vision range. Revealed tiles do not stay revealed — when the player moves away, darkness returns.
+
+At the edge of vision: biome color and landmark shapes (trees, caves) are visible but not detail.
+
+---
+
+### INVENTORY AND EQUIPMENT
+
+There is no inventory at world start. No equipment at world start.
+
+These are created by players and NPCs through the Council. Until someone makes the skill, nothing can be carried or worn.
 
 ---
 
