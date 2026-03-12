@@ -27,6 +27,65 @@ Cells contain biomes, features, NPCs, items, skills, and world complexity.
 
 Cell contents emerge from rules. Rules are extensible — players and NPCs can contribute new rules, which pass through the Triune Council before entering the world.
 
+Cells are 2D tile grids. Each tile is 32×32 pixels. Each cell is 8×8 tiles.
+
+---
+
+### BIOMES
+
+Eight founding biomes drawn from biblical geography. All world generation begins from these.
+
+| Biome | Character |
+|-------|-----------|
+| Wilderness | Dry scrubland. The default. Most of the world. |
+| Desert | Sand and rock. Harsh. Little grows. |
+| River | Fresh water. Fertile banks. |
+| Sea | Salt water. Impassable on foot. |
+| Forest | Dense trees. Cedar and olive. |
+| Grove | Open trees. Fig and palm. Lighter than forest. |
+| Mountain | High rock. Caves concentrate here. |
+| Valley | Low fertile land between mountains. |
+
+---
+
+### CAVES
+
+Caves appear in four biomes at varying rates. A cave can hold one occupant at a time.
+
+| Biome | Cave rate |
+|-------|-----------|
+| Mountain | High |
+| Grove | Low |
+| Desert | Very low |
+| Wilderness | Low |
+
+No caves in River, Sea, Forest, or Valley.
+
+---
+
+### MANNA
+
+Manna spawns each morning based on biome. Animals and players compete for the same supply.
+
+| Biome | Manna density |
+|-------|---------------|
+| Valley | Generous (1/8) |
+| River | Moderate (1/10) |
+| Forest | Moderate (1/10) |
+| Grove | Moderate (1/12) |
+| Wilderness | Sparse (1/15) |
+| Mountain | Rare (1/20) |
+| Desert | Rare (1/25) |
+| Sea | None |
+
+Density is the fraction of tiles that receive one manna item at morning spawn.
+
+---
+
+### PLAYER START
+
+New players spawn in a random cell within 3 cells of a cave. No continuity with any previous character.
+
 ---
 
 ### SPHERES
