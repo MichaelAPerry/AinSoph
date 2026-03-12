@@ -15,11 +15,17 @@ The rules in this document are the founding physics. Everything begins here.
 
 ### SURVIVAL
 
-**Eat.** Every living character — PC, NPC, animal — must eat once per day. This is binary. You ate or you didn't. Failure to eat results in death.
+**Eat.** Every living character — PC, NPC, animal — must eat once per day. This is binary. You ate or you didn't. Failure to eat results in death. A day is 24 real hours, tracked against the player's local clock.
 
-**Sleep.** Every living character must sleep once per day. Failure to sleep results in death.
+**Sleep.** Every living character must sleep 8 continuous real hours within each 24-hour window. Failure to sleep results in death.
 
-Where you sleep matters. Sleeping in an exposed location leaves you vulnerable to kill rolls from nearby animals and other characters. Safety is not guaranteed by the world. It must be built.
+**Warnings.** At hour 23 without eating, a hunger warning is issued. At hour 23 without sleeping, a sleep warning is issued.
+
+**Safe sleep.** A cave is the only safe location. A character inside a cave is sleeping safely. A cave can be occupied by one character at a time — entering claims it, leaving frees it immediately.
+
+**Exposed sleep.** Any sleep outside a cave is exposed. An exposed sleeping character is vulnerable to kill rolls from any entity that decides to initiate one.
+
+**Logout.** When a player logs out, their character remains in the world. If they are not inside a cave, they are considered sleeping exposed. They can be killed while offline. The world does not pause.
 
 ---
 
@@ -28,6 +34,8 @@ Where you sleep matters. Sleeping in an exposed location leaves you vulnerable t
 When a character or animal dies, their body remains in the world as an item.
 
 The body follows item rules. It is physical. It can be interacted with. What happens to it is up to other PCs and NPCs.
+
+**Player death.** The player's body stays in the world. The player creates a new character with no continuity — no knowledge of the old character's location, possessions, or history.
 
 ---
 
