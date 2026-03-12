@@ -95,6 +95,9 @@ public class PlayerSaveData
     public DateTime LastSleptUtc { get; set; }
     public bool     IsInCave     { get; set; }
 
+    // Play time — for rib tracking
+    public double AccumulatedPlayHours { get; set; }
+
     // Inventory — item ids
     public List<string> InventoryItemIds { get; set; } = new();
 

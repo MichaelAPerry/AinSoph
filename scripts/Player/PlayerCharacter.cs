@@ -33,7 +33,7 @@ public class PlayerCharacter
     public List<string> ProgenyIds   { get; } = new();
 
     // Play time tracking for rib — accumulated real hours
-    public double AccumulatedPlayHours { get; private set; }
+    public double AccumulatedPlayHours { get; set; }
     private DateTime? _sessionStartUtc;
 
     public const double RibEarnHours = 168.0; // 1 real week

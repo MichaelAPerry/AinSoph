@@ -22,6 +22,10 @@ public class NpcBrain
     public NpcState      State     { get; private set; } = NpcState.Idle;
     public SurvivalTracker Survival { get; }
 
+    private string _cellId = string.Empty;
+    public string CellId() => _cellId;
+    public void SetCellId(string cellId) => _cellId = cellId;
+
     private readonly LlmRunner _llm;
     private DateTime _lastThinkUtc;
     private DateTime _sleepStartUtc;
