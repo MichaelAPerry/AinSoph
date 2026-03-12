@@ -187,7 +187,11 @@ namespace AinSoph.UI
             _portraitContainer.AddChild(_portraitViewport);
 
             // ── Input panel (bottom) ──
-            float inputY = h - inputH - margin;
+            float inputY   = h - inputH - margin;
+            float btnW     = 80f;
+            float btnGap   = 6f;
+            float fieldW   = w - margin * 2 - 90f - (btnW + btnGap) * 2;
+
             var inputBg = new Panel();
             inputBg.Position = new Vector2(margin, inputY);
             inputBg.Size     = new Vector2(w - margin * 2, inputH);
@@ -195,19 +199,33 @@ namespace AinSoph.UI
             AddChild(inputBg);
 
             _inputPrompt = new Label();
-            _inputPrompt.Position = new Vector2(10, 10);
+            _inputPrompt.Position = new Vector2(10, 22);
             _inputPrompt.AddThemeColorOverride("font_color", new Color(0.5f, 0.5f, 0.5f));
             _inputPrompt.AddThemeFontSizeOverride("font_size", 13);
             inputBg.AddChild(_inputPrompt);
 
             _inputField = new LineEdit();
             _inputField.Position = new Vector2(90, 8);
-            _inputField.Size     = new Vector2(w - margin * 2 - 100, inputH - 16);
+            _inputField.Size     = new Vector2(fieldW, inputH - 16);
             _inputField.AddThemeColorOverride("font_color", InputColor);
             _inputField.AddThemeFontSizeOverride("font_size", 15);
             _inputField.AddThemeStyleboxOverride("normal", MakeInputStyle());
             _inputField.TextSubmitted += OnInputSubmitted;
             inputBg.AddChild(_inputField);
+
+            // SEND button
+            float btnX = 90f + fieldW + btnGap;
+            var sendBtn = MakeButton("SEND", new Vector2(btnX, 10), new Vector2(btnW, inputH - 20),
+                new Color(0.2f, 0.35f, 0.2f));
+            sendBtn.Pressed += SubmitInput;
+            inputBg.AddChild(sendBtn);
+
+            // LEAVE button
+            float leaveX = btnX + btnW + btnGap;
+            var leaveBtn = MakeButton("LEAVE", new Vector2(leaveX, 10), new Vector2(btnW, inputH - 20),
+                new Color(0.3f, 0.12f, 0.12f));
+            leaveBtn.Pressed += Close;
+            inputBg.AddChild(leaveBtn);
         }
 
         private void BuildPortrait()
@@ -275,6 +293,35 @@ namespace AinSoph.UI
             s.BgColor = new Color(0f, 0f, 0f, 0f); // transparent — inherits panel bg
             s.SetBorderWidthAll(0);
             return s;
+        }
+
+        private static Button MakeButton(string text, Vector2 pos, Vector2 size, Color bg)
+        {
+            var btn = new Button();
+            btn.Text     = text;
+            btn.Position = pos;
+            btn.Size     = size;
+            btn.AddThemeFontSizeOverride("font_size", 12);
+            btn.AddThemeColorOverride("font_color", new Color(0.85f, 0.85f, 0.85f));
+
+            var normal = new StyleBoxFlat();
+            normal.BgColor = bg;
+            normal.SetBorderWidthAll(1);
+            normal.BorderColor = new Color(0.5f, 0.5f, 0.5f);
+            normal.SetCornerRadiusAll(2);
+            btn.AddThemeStyleboxOverride("normal", normal);
+
+            var hover = new StyleBoxFlat();
+            hover.BgColor = new Color(
+                Mathf.Clamp(bg.R + 0.1f, 0, 1),
+                Mathf.Clamp(bg.G + 0.1f, 0, 1),
+                Mathf.Clamp(bg.B + 0.1f, 0, 1));
+            hover.SetBorderWidthAll(1);
+            hover.BorderColor = new Color(0.7f, 0.7f, 0.7f);
+            hover.SetCornerRadiusAll(2);
+            btn.AddThemeStyleboxOverride("hover", hover);
+
+            return btn;
         }
     }
 }

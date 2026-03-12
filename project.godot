@@ -12,7 +12,11 @@ config_version=5
 
 config/name="Ain Soph"
 config/features=PackedStringArray("4.4", "C#")
-config/run/main_scene="res://scenes/world/World.tscn"
+config/run/main_scene="res://scenes/world/WorldScene.tscn"
+
+[autoload]
+
+GameRoot="*res://scripts/GameRoot.cs"
 
 [dotnet]
 
