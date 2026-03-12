@@ -6,17 +6,16 @@ namespace AinSoph.Data;
 /// <summary>
 /// Manages routes between player worlds.
 /// A route is a mutual agreement — both players must consent.
-/// When open, up to 1/10th of the border population migrates
-/// automatically in each direction.
+/// When open, up to 1/10th of the NPC population migrates.
 ///
-/// Migration packets are JSON files the players exchange.
-/// The handshake is: Player A exports -> sends to Player B -> Player B imports.
-/// Both directions run independently.
+/// Migration packets are JSON files the players exchange by any means.
+/// Export → send to other player → they Import.
+/// Imported NPCs are permanently marked as foreigners.
 /// </summary>
 public class RouteManager
 {
-    private readonly SaveManager _save;
-    private readonly List<NpcBrain> _worldNpcs; // reference to the live NPC list
+    private readonly SaveManager    _save;
+    private readonly List<NpcBrain> _worldNpcs;
 
     public RouteManager(SaveManager save, List<NpcBrain> worldNpcs)
     {
@@ -24,80 +23,92 @@ public class RouteManager
         _worldNpcs = worldNpcs;
     }
 
-    // -------------------------------------------------------------------------
-    // Export — this player opens their side of the route
-    // -------------------------------------------------------------------------
+    // ── Export ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Select up to 1/10th of the NPC population near the border at random
-    /// and export them to a migration packet file.
-    /// The packet file is then sent to the other player by any means
-    /// (file share, USB, network — the game does not prescribe how).
+    /// Select up to 1/10th of the NPC population at random and write them
+    /// to a migration packet file. Removes them from the local world.
+    /// Returns the number of migrants exported.
     /// </summary>
-    public string ExportMigrants(string outputPath)
+    public int ExportMigrants(string outputPath)
     {
         if (_worldNpcs.Count == 0)
         {
-            GD.Print("RouteManager: no NPCs to migrate");
-            return outputPath;
+            GD.Print("RouteManager: no NPCs to export");
+            return 0;
         }
 
         var maxMigrants = Math.Max(1, _worldNpcs.Count / 10);
         var rng         = new Random();
-
-        // Shuffle and take up to the cap
-        var pool = _worldNpcs.OrderBy(_ => rng.Next()).Take(maxMigrants).ToList();
+        var pool        = _worldNpcs.OrderBy(_ => rng.Next()).Take(maxMigrants).ToList();
 
         var saveData = pool.Select(npc => new NpcSaveData
         {
             Id            = npc.NpcId,
             DecanId       = npc.Decan.Id,
-            State         = npc.State.ToString().ToLower(),
+            Name          = npc.Decan.Name,
+            State         = "idle",
             MemoryWill    = npc.Memory.Will,
             MemoryThought = npc.Memory.Thought,
             MemoryFeeling = npc.Memory.Feeling,
             MemoryAction  = npc.Memory.Action,
             LastAteUtc    = npc.Survival.LastAteUtc,
             LastSleptUtc  = npc.Survival.LastSleptUtc,
-            Lineage       = new List<string>() // lineage appended by the receiving world
+            BrokenMove    = npc.BrokenMove,
+            BrokenSee     = npc.BrokenSee,
+            BrokenHear    = npc.BrokenHear,
+            BrokenTalk    = npc.BrokenTalk,
+            IsForeigner   = false, // they are native until they cross
+            Lineage       = new List<string>()
         }).ToList();
 
         _save.ExportMigrationPacket(saveData, outputPath);
 
-        // Remove migrants from the local world
         foreach (var npc in pool)
             _worldNpcs.Remove(npc);
 
-        GD.Print($"RouteManager: {pool.Count} NPCs exported. " +
-                 $"{_worldNpcs.Count} remain in this world.");
-
-        return outputPath;
+        GD.Print($"RouteManager: {pool.Count} exported — {_worldNpcs.Count} remain");
+        return pool.Count;
     }
 
-    // -------------------------------------------------------------------------
-    // Import — receive migrants from another world
-    // -------------------------------------------------------------------------
+    // ── Import ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Import migrants from a packet file produced by the other player's ExportMigrants.
-    /// Decan and all four memory slots arrive intact.
-    /// Lineage is appended with the origin world marker.
+    /// Import migrants from a packet file.
+    /// All imported NPCs are permanently marked as foreigners.
+    /// Lineage is appended with origin world and date.
+    /// Returns the list of save records for the caller to instantiate as live NPCs.
     /// </summary>
-    public List<NpcSaveData> ImportMigrants(string packetPath, string originWorldName)
+    public List<NpcSaveData> ImportMigrants(string packetPath, string originWorldName,
+        int spawnTileX, int spawnTileY)
     {
         var packet = _save.ImportMigrationPacket(packetPath);
         if (packet is null) return new List<NpcSaveData>();
 
         foreach (var npc in packet.Npcs)
         {
-            // Append origin to lineage — read only and append only from here
+            // Permanent foreigner status — set here, never cleared
+            npc.IsForeigner = true;
+
+            // Namespace the id to avoid collision with any existing NPC
+            npc.Id = $"foreign.{originWorldName}.{npc.Id}";
+
+            // Append-only lineage
             npc.Lineage.Add($"migrated-from:{originWorldName}:{packet.ExportedUtc:yyyy-MM-dd}");
 
-            // Save each incoming NPC into this world
+            // Spawn near the border — caller passes a tile near the edge
+            npc.TileX  = spawnTileX + new Random().Next(-2, 3);
+            npc.TileY  = spawnTileY + new Random().Next(-2, 3);
+            npc.CellId = $"{npc.TileX / 8},{npc.TileY / 8}";
+
+            // Reset survival clock — they arrive hungry and tired after crossing
+            npc.LastAteUtc   = DateTime.UtcNow - TimeSpan.FromHours(20);
+            npc.LastSleptUtc = DateTime.UtcNow - TimeSpan.FromHours(20);
+
             _save.SaveNpc(npc);
         }
 
-        GD.Print($"RouteManager: {packet.Npcs.Count} NPCs arrived from {originWorldName}");
+        GD.Print($"RouteManager: {packet.Npcs.Count} arrived from {originWorldName} as foreigners");
         return packet.Npcs;
     }
 }

@@ -133,6 +133,19 @@ namespace AinSoph.UI
             _warningLabel.Visible  = false;
             AddChild(_warningLabel);
 
+            // ── ROUTES button — far right of action bar ──
+            var routesBtn = new Button();
+            routesBtn.Text     = "ROUTES";
+            routesBtn.Size     = new Vector2(72, 38);
+            routesBtn.Position = new Vector2(w - 84, (barH - 38) / 2f);
+            routesBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.10f, 0.10f, 0.08f)));
+            routesBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.20f, 0.19f, 0.14f)));
+            routesBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
+            routesBtn.AddThemeFontSizeOverride("font_size", 10);
+            routesBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
+            routesBtn.Pressed += () => EmitSignal(SignalName.RoutesOpenRequested);
+            _actionBarPanel.AddChild(routesBtn);
+
             // Build initial slots with the 6 primitives
             var primitives = new List<SkillType>
                 { SkillType.Move, SkillType.See, SkillType.Hear, SkillType.Talk, SkillType.Reap, SkillType.Pray };
@@ -227,5 +240,6 @@ namespace AinSoph.UI
 
         // ── Signals ──────────────────────────────────────────────────────────
         [Signal] public delegate void SkillSelectedEventHandler(int skillType);
+        [Signal] public delegate void RoutesOpenRequestedEventHandler();
     }
 }

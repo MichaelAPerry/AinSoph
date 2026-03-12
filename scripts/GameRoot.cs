@@ -40,6 +40,8 @@ public partial class GameRoot : Node
     public static TribuneCouncil?      Council             { get; private set; }
     public static InteractionResolver? Interactions        { get; private set; }
     public static WorldItemRegistry?   Items               { get; private set; }
+    public static Data.RouteManager?   Routes              { get; private set; }
+    public static string               WorldName           { get; private set; } = "World";
 
     public static List<NpcBrain>       LiveNpcs            { get; } = new();
     public static List<AnimalBrain>    LiveAnimals         { get; } = new();
@@ -89,17 +91,18 @@ public partial class GameRoot : Node
         if (worldData is not null)
         {
             worldSeed = worldData.WorldSeed;
-            GD.Print($"GameRoot: loaded world '{worldData.WorldName}' " +
-                     $"(seed {worldSeed})");
+            WorldName = worldData.WorldName;
+            GD.Print($"GameRoot: loaded world '{WorldName}' (seed {worldSeed})");
         }
         else
         {
             worldSeed = new Random().Next();
+            WorldName = "New World";
             var newWorld = new Data.WorldSaveData
             {
                 WorldSeed  = worldSeed,
                 CreatedUtc = DateTime.UtcNow,
-                WorldName  = "New World"
+                WorldName  = WorldName
             };
             Save.SaveWorld(newWorld);
             GD.Print($"GameRoot: new world created (seed {worldSeed})");
@@ -114,6 +117,9 @@ public partial class GameRoot : Node
         // 4b. Item registry
         Items = new WorldItemRegistry(Save);
         Items.LoadAll();
+
+        // 4c. Route manager
+        Routes = new Data.RouteManager(Save, LiveNpcs);
 
         // 5. NPC queue
         NpcQueue = new NpcTickQueue();
@@ -348,8 +354,45 @@ public partial class GameRoot : Node
     }
 
     // -------------------------------------------------------------------------
-    // NPC death
+    // Foreigner arrival — called by RoutesScreen after import
     // -------------------------------------------------------------------------
+
+    public static void InstantiateForeigners(List<Data.NpcSaveData> arrivals)
+    {
+        if (Llm == null) return;
+        var nowUtc = DateTime.UtcNow;
+
+        foreach (var data in arrivals)
+        {
+            var decan = DecanRegistry.Get(data.DecanId);
+            if (decan == null)
+            {
+                GD.PrintErr($"GameRoot: foreigner {data.Id} has unknown decan '{data.DecanId}' — skipped");
+                continue;
+            }
+
+            var brain = new NpcBrain(data.Id, decan, Llm, nowUtc);
+            brain.Memory.Write(NPC.MemorySlot.Will,    data.MemoryWill);
+            brain.Memory.Write(NPC.MemorySlot.Thought, data.MemoryThought);
+            brain.Memory.Write(NPC.MemorySlot.Feeling, data.MemoryFeeling);
+            brain.Memory.Write(NPC.MemorySlot.Action,  data.MemoryAction);
+            brain.BrokenMove  = data.BrokenMove;
+            brain.BrokenSee   = data.BrokenSee;
+            brain.BrokenHear  = data.BrokenHear;
+            brain.BrokenTalk  = data.BrokenTalk;
+            brain.IsForeigner = true; // permanent, regardless of what save says
+            brain.SetCellId(data.CellId);
+            brain.OnDeath += OnNpcDeath;
+
+            LiveNpcs.Add(brain);
+            NpcQueue?.Enqueue(brain);
+
+            // Tell the scene layer to add a world node
+            _worldScene?.UpsertNpc(data);
+
+            GD.Print($"GameRoot: foreigner '{decan.Name}' arrived from route at {data.CellId}");
+        }
+    }
 
     private void OnNpcDeath(NpcBrain npc)
     {
@@ -663,7 +706,7 @@ public partial class GameRoot : Node
             cell.GetTile(lx, ly).ItemIds.Remove(itemId);
     }
 
-    // ── WorldScene reference ──────────────────────────────────────────────    private WorldScene? _worldScene;
+    // ── WorldScene reference ──────────────────────────────────────────────    private static WorldScene? _worldScene;
 
     private async void OnPrimitiveUsed(string targetId, int skillType)
     {

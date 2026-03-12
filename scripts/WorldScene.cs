@@ -37,6 +37,7 @@ namespace AinSoph
         private HUD             _hud;
         private DialogueScreen  _dialogue;
         private PrimitiveMenu   _primitiveMenu;
+        private RoutesScreen    _routesScreen;
         private Label           _worldTextLabel;
         private float           _worldTextTimer;
 
@@ -282,6 +283,14 @@ namespace AinSoph
             _primitiveMenu.Name = "PrimitiveMenu";
             _primitiveMenu.OnPrimitiveChosen += OnPrimitiveChosen;
             AddChild(_primitiveMenu);
+
+            _routesScreen = new RoutesScreen();
+            _routesScreen.Name = "RoutesScreen";
+            _routesScreen.OnClose += () => { /* nothing special needed */ };
+            AddChild(_routesScreen);
+
+            _hud.Connect(HUD.SignalName.RoutesOpenRequested,
+                Callable.From(() => _routesScreen.Open()));
 
             // World text — oblique/environmental responses, fades out above action bar
             var hudLayer = new CanvasLayer();
