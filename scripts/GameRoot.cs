@@ -172,7 +172,8 @@ public partial class GameRoot : Node
             brain.BrokenSee  = npcData.BrokenSee;
             brain.BrokenHear = npcData.BrokenHear;
             brain.BrokenTalk = npcData.BrokenTalk;
-            brain.OnDeath += OnNpcDeath;
+            brain.OnDeath     += OnNpcDeath;
+            brain.OnDecision  += OnNpcDecision;
 
             LiveNpcs.Add(brain);
             NpcQueue.Enqueue(brain);
@@ -325,9 +326,21 @@ public partial class GameRoot : Node
         int total = 0;
         foreach (var (cellKey, tiles) in spawned)
         {
+            ParseCellId(cellKey, out var cx, out var cy);
+            var cell = Grid?.GetIfLoaded(cx, cy);
+
             foreach (var (tx, ty) in tiles)
             {
-                Items.SpawnManna(tx, ty);
+                var item = Items.SpawnManna(tx, ty);
+
+                // Register on tile so NPCs can find it via SituationContext
+                if (cell != null)
+                {
+                    int lx = tx - cx * 8;
+                    int ly = ty - cy * 8;
+                    if (lx >= 0 && lx < 8 && ly >= 0 && ly < 8)
+                        cell.GetTile(lx, ly).ItemIds.Add(item.Id);
+                }
                 total++;
             }
         }
@@ -615,8 +628,41 @@ public partial class GameRoot : Node
     // Helpers
     // -------------------------------------------------------------------------
 
-    // ── WorldScene reference ──────────────────────────────────────────────
-    private WorldScene? _worldScene;
+    // ── NPC decision handler ──────────────────────────────────────────────
+
+    private void OnNpcDecision(NpcBrain npc, NpcDecision decision)
+    {
+        if (decision.ParsedState == NPC.NpcState.Eating &&
+            !string.IsNullOrEmpty(decision.EatItemId) &&
+            Items != null)
+        {
+            // Get tile coords from save (NpcBrain only tracks CellId in memory)
+            var saved = Save?.LoadNpc(npc.NpcId);
+            int tx = saved?.TileX ?? 0;
+            int ty = saved?.TileY ?? 0;
+            ConsumeItemFromTile(decision.EatItemId, tx, ty);
+        }
+    }
+
+    private void ConsumeItemFromTile(string itemId, int tileX, int tileY)
+    {
+        if (Items == null) return;
+
+        Items.Consume(itemId);
+
+        // Remove from tile.ItemIds so it no longer appears in situation context
+        int cx = tileX < 0 ? (tileX - 7) / 8 : tileX / 8;
+        int cy = tileY < 0 ? (tileY - 7) / 8 : tileY / 8;
+        var cell = Grid?.GetIfLoaded(cx, cy);
+        if (cell == null) return;
+
+        int lx = tileX - cx * 8;
+        int ly = tileY - cy * 8;
+        if (lx >= 0 && lx < 8 && ly >= 0 && ly < 8)
+            cell.GetTile(lx, ly).ItemIds.Remove(itemId);
+    }
+
+    // ── WorldScene reference ──────────────────────────────────────────────    private WorldScene? _worldScene;
 
     private async void OnPrimitiveUsed(string targetId, int skillType)
     {
@@ -649,6 +695,19 @@ public partial class GameRoot : Node
         else
         {
             req.TargetType = Skills.InteractionTarget.Item;
+        }
+
+        // Eat: any primitive used on an edible item consumes it and satisfies hunger
+        if (req.TargetType == Skills.InteractionTarget.Item && Items != null)
+        {
+            var item = Items.All.FirstOrDefault(i => i.Id == targetId);
+            if (item != null && item.Edible && Player != null)
+            {
+                Player.Survival.RecordEat(System.DateTime.UtcNow);
+                ConsumeItemFromTile(item.Id, Player.TileX, Player.TileY);
+                _worldScene?.ShowWorldText("You eat. The hunger recedes.");
+                return;
+            }
         }
 
         // Talk → open dialogue screen then let the NPC's next think reply
@@ -737,8 +796,9 @@ public partial class GameRoot : Node
             switch (sub.Type.ToLower())
             {
                 case "skill":
-                    // Add as a custom skill id; HUD will show it on next refresh
                     Player.SkillIds.Add(sub.Name.ToLower().Replace(" ", "_"));
+                    // Refresh HUD — custom skills show as unlocked slots
+                    // For now, primitive SkillType slots are fixed; custom skills append
                     _worldScene.ShowWorldText($"The Council grants: {sub.Name}");
                     SaveAll();
                     break;

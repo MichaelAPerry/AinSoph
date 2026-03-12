@@ -28,6 +28,21 @@ public class NpcBrain
     public bool BrokenHear  { get; set; }
     public bool BrokenTalk  { get; set; }
 
+    /// <summary>
+    /// Roll birth impairment for a newly created NPC.
+    /// Rates from SKILLS.md — real-world natural occurrence.
+    /// Move: ~2.5/1000, See: ~0.4/1000, Hear: ~1/1000, Talk: ~0.1/1000.
+    /// </summary>
+    public static (bool move, bool see, bool hear, bool talk) RollBirthImpairment(Random rng)
+    {
+        return (
+            move: rng.NextDouble() < 0.0025,
+            see:  rng.NextDouble() < 0.0004,
+            hear: rng.NextDouble() < 0.001,
+            talk: rng.NextDouble() < 0.0001
+        );
+    }
+
     private string _cellId = string.Empty;
     public string CellId() => _cellId;
     public void SetCellId(string cellId) => _cellId = cellId;
@@ -109,7 +124,7 @@ public class NpcBrain
     private async Task ThinkAsync(SituationContext situation, DateTime now,
         CancellationToken ct)
     {
-        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan);
+        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk);
         var userMessage  = NpcPromptBuilder.BuildUserMessage(Memory, situation);
 
         string raw;
@@ -180,7 +195,7 @@ public class NpcBrain
     public async Task<string> RespondToDialogueAsync(string playerMessage,
         SituationContext situation, CancellationToken ct = default)
     {
-        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan);
+        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk);
 
         var context = NpcPromptBuilder.BuildUserMessage(Memory, situation);
         var currentActivity = State switch

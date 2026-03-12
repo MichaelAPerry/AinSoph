@@ -16,7 +16,9 @@ public static class NpcPromptBuilder
         WriteIndented = false
     };
 
-    public static string BuildSystemPrompt(DecanSeed decan)
+    public static string BuildSystemPrompt(DecanSeed decan,
+        bool brokenMove = false, bool brokenSee = false,
+        bool brokenHear = false, bool brokenTalk = false)
     {
         var sb = new StringBuilder();
 
@@ -37,6 +39,20 @@ public static class NpcPromptBuilder
         sb.AppendLine();
         sb.AppendLine("This nature does not change. It is what you are.");
         sb.AppendLine();
+
+        // Birth impairment — only mention what is actually broken
+        bool anyImpaired = brokenMove || brokenSee || brokenHear || brokenTalk;
+        if (anyImpaired)
+        {
+            sb.AppendLine("You were born with the following impairments. These are permanent.");
+            if (brokenMove) sb.AppendLine("  You cannot move under your own power.");
+            if (brokenSee)  sb.AppendLine("  You cannot see.");
+            if (brokenHear) sb.AppendLine("  You cannot hear.");
+            if (brokenTalk) sb.AppendLine("  You cannot speak.");
+            sb.AppendLine("These are starting conditions. How you and others respond is the world.");
+            sb.AppendLine();
+        }
+
         sb.AppendLine("You must survive. Every day you must eat and sleep 8 continuous hours.");
         sb.AppendLine("A cave is the only safe place to sleep. Sleeping exposed leaves you vulnerable.");
         sb.AppendLine("If you die your body stays in the world.");

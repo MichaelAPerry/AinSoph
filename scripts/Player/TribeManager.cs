@@ -53,12 +53,12 @@ public class TribeManager
         var spouse = new NpcBrain(npcId, decan, llm, nowUtc);
 
         // Roll birth impairment
-        var spouseData = new AinSoph.Data.NpcSaveData();
-        AinSoph.NPC.BirthImpairment.Roll(spouseData);
-        spouse.BrokenMove = spouseData.BrokenMove;
-        spouse.BrokenSee  = spouseData.BrokenSee;
-        spouse.BrokenHear = spouseData.BrokenHear;
-        spouse.BrokenTalk = spouseData.BrokenTalk;
+        var rng = new Random();
+        var (bMove, bSee, bHear, bTalk) = NpcBrain.RollBirthImpairment(rng);
+        spouse.BrokenMove = bMove;
+        spouse.BrokenSee  = bSee;
+        spouse.BrokenHear = bHear;
+        spouse.BrokenTalk = bTalk;
 
         // Seed the spouse's memory with the player's description of them
         spouse.Memory.Write(MemorySlot.Thought,
@@ -102,12 +102,12 @@ public class TribeManager
         var progeny = new NpcBrain(npcId, decan, llm, nowUtc);
 
         // Roll birth impairment
-        var progenyData = new AinSoph.Data.NpcSaveData();
-        AinSoph.NPC.BirthImpairment.Roll(progenyData);
-        progeny.BrokenMove = progenyData.BrokenMove;
-        progeny.BrokenSee  = progenyData.BrokenSee;
-        progeny.BrokenHear = progenyData.BrokenHear;
-        progeny.BrokenTalk = progenyData.BrokenTalk;
+        var rng = new Random();
+        var (bMove, bSee, bHear, bTalk) = NpcBrain.RollBirthImpairment(rng);
+        progeny.BrokenMove = bMove;
+        progeny.BrokenSee  = bSee;
+        progeny.BrokenHear = bHear;
+        progeny.BrokenTalk = bTalk;
 
         // Lineage — append-only origin record
         // Stored in action memory as the closest equivalent until a lineage field is added

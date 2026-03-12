@@ -230,6 +230,10 @@ namespace AinSoph
             _dialogue.OpenNPC(npcId, name, decanId, seed, openingLine, onSpeak);
         }
 
+        /// <summary>Update the HUD skill bar — call after Council grants a new skill.</summary>
+        public void RefreshHudSkills(System.Collections.Generic.List<SkillType> skills)
+            => _hud.SetSkills(skills);
+
         /// <summary>Update the speech box with a new LLM reply.</summary>
         public void SetDialogueSpeech(string text) => _dialogue.SetSpeech(text);
 

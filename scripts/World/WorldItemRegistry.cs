@@ -86,6 +86,18 @@ namespace AinSoph.World
             );
         }
 
+        /// <summary>
+        /// Consume an item — removes it from the registry and returns true.
+        /// Returns false if the item doesn't exist or isn't edible.
+        /// </summary>
+        public bool Consume(string itemId)
+        {
+            var item = _items.FirstOrDefault(i => i.Id == itemId);
+            if (item == null) return false;
+            Remove(itemId);
+            return true;
+        }
+
         // ── Removal ───────────────────────────────────────────────────────
 
         public void Remove(string itemId)
