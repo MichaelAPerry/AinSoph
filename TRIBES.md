@@ -5,13 +5,15 @@
 
 ### THE RIB
 
-A rib is earned through player progress. Not every player has one. Earning it is meaningful.
+A rib is earned after 1 real week of play — 168 accumulated real hours in-world.
 
 A player has one rib. Ever.
 
 The rib produces the spouse NPC.
 
 The spouse is named and described by the player consciously. This is a deliberate creation.
+
+The spouse is a standard NPC. Their decan is drawn from the 72 at creation.
 
 The spouse never leaves the player's sphere.
 
@@ -23,13 +25,17 @@ The spouse is the sacred object of the tribe.
 
 Progeny are the children of the player and spouse.
 
+Once the spouse exists, 1 or 2 progeny are born each real week.
+
 Progeny are assigned a decan from the 72 at birth. This is their nature. It is not inherited from parents — it is drawn from the pool.
+
+Progeny are standard NPCs. They wander freely. They are the only NPCs in the world apart from migrants.
 
 Progeny wander.
 
 Progeny intermarry with progeny from other tribes.
 
-Intermarried progeny carry lineage from multiple players in their lineage field.
+Intermarried progeny carry lineage from multiple players in their lineage field. Lineage carries the origin player id.
 
 Lineage is read-only and append-only. It cannot be edited. It can only grow.
 
