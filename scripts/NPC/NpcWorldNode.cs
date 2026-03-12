@@ -22,6 +22,7 @@ namespace AinSoph.UI
     {
         // ── Data ──────────────────────────────────────────────────────────
         public string   NpcId      { get; private set; }
+        public string   NpcName    { get; private set; } = string.Empty;
         public NpcState State      { get; private set; } = NpcState.Idle;
         public bool     IsAnimal   { get; private set; }
 
@@ -81,6 +82,7 @@ namespace AinSoph.UI
         public void Setup(string npcId, string name, int seed, bool isAnimal, NpcState initialState)
         {
             NpcId    = npcId;
+            NpcName  = name;
             IsAnimal = isAnimal;
             _nameLabel.Text = name;
 

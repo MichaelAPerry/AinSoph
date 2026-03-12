@@ -36,6 +36,9 @@ namespace AinSoph
         private Node2D          _entityLayer;
         private HUD             _hud;
         private DialogueScreen  _dialogue;
+        private PrimitiveMenu   _primitiveMenu;
+        private Label           _worldTextLabel;
+        private float           _worldTextTimer;
 
         // ── NPC tracking ──────────────────────────────────────────────────
         private readonly Dictionary<string, NpcWorldNode> _npcNodes = new();
@@ -72,6 +75,15 @@ namespace AinSoph
         public override void _Process(double delta)
         {
             HandleMovementInput();
+
+            if (_worldTextTimer > 0f)
+            {
+                _worldTextTimer -= (float)delta;
+                float a = Mathf.Clamp(_worldTextTimer / 1.2f, 0f, 1f);
+                _worldTextLabel.Modulate = new Color(1, 1, 1, a);
+                if (_worldTextTimer <= 0f)
+                    _worldTextLabel.Visible = false;
+            }
         }
 
         // ── Entity management ─────────────────────────────────────────────
@@ -131,10 +143,33 @@ namespace AinSoph
 
             if (ev is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left && mb.Pressed)
             {
-                var screenCenter = GetViewport().GetVisibleRect().Size / 2;
-                var worldPos     = _camera.GlobalPosition + mb.Position - screenCenter;
-                var targetTile   = new Vector2I((int)(worldPos.X / 32), (int)(worldPos.Y / 32));
-                StepToward(targetTile);
+                var viewport   = GetViewport().GetVisibleRect().Size;
+                var camOffset  = _camera.GlobalPosition - viewport / 2f;
+                var worldPos   = mb.Position + camOffset;
+                var targetTile = new Vector2I((int)(worldPos.X / 32), (int)(worldPos.Y / 32));
+
+                // Check if click landed on an NPC — NpcWorldNode handles its own click signal,
+                // so we only open the tile menu here if no entity was under the cursor.
+                // A simple way: open tile menu on right-click, move on left-click.
+                // Per design: click opens primitive menu on any target including tiles.
+                // We use right-click for tile interaction; left-click still moves.
+                if (mb.ButtonIndex == MouseButton.Left)
+                {
+                    StepToward(targetTile);
+                }
+            }
+
+            if (ev is InputEventMouseButton rbmb && rbmb.ButtonIndex == MouseButton.Right && rbmb.Pressed)
+            {
+                var viewport  = GetViewport().GetVisibleRect().Size;
+                var camOffset = _camera.GlobalPosition - viewport / 2f;
+                var worldPos  = rbmb.Position + camOffset;
+                var tileX     = (int)(worldPos.X / 32);
+                var tileY     = (int)(worldPos.Y / 32);
+                var cellCoord = TileToCell(new Vector2I(tileX, tileY));
+                var cell      = Grid?.GetOrGenerate(cellCoord.X, cellCoord.Y);
+                var biome     = cell?.Biome.ToString() ?? "ground";
+                OnTileClicked(rbmb.Position, biome);
             }
         }
 
@@ -151,6 +186,7 @@ namespace AinSoph
 
         private void ApplyPlayerMove(Vector2I newTile)
         {
+            _primitiveMenu?.Close(); // moving dismisses the menu
             _playerTile = newTile;
 
             if (Player != null)
@@ -163,13 +199,28 @@ namespace AinSoph
             _camera.Position = new Vector2(newTile.X * 32, newTile.Y * 32);
         }
 
-        // ── Entity click → interaction ────────────────────────────────────
+        // ── Entity / tile click → primitive menu ─────────────────────────
 
         private void OnEntityClicked(string entityId)
         {
-            var skill = _hud.SelectedSkill;
-            if (skill == SkillType.Talk)
-                EmitSignal(SignalName.PlayerSpoke, entityId, "[open]");
+            if (!_npcNodes.TryGetValue(entityId, out var node)) return;
+
+            var npcName  = node.NpcName;
+            var viewport = GetViewport().GetVisibleRect().Size;
+            var camOffset = _camera.GlobalPosition - viewport / 2f;
+            var screenPos = node.GlobalPosition + new Vector2(16, 0) - camOffset;
+
+            _primitiveMenu.Open(entityId, npcName, screenPos);
+        }
+
+        private void OnTileClicked(Vector2 screenPos, string tileDesc)
+        {
+            _primitiveMenu.Open("tile:" + tileDesc, tileDesc, screenPos);
+        }
+
+        private void OnPrimitiveChosen(string targetId, SkillType skill)
+        {
+            EmitSignal(SignalName.PrimitiveUsed, targetId, (int)skill);
         }
 
         /// <summary>Called by GameRoot with the actual NPC data + LLM response.</summary>
@@ -184,6 +235,15 @@ namespace AinSoph
 
         /// <summary>Open the altar prayer screen.</summary>
         public void OpenAltar(System.Action<string> onSubmit) => _dialogue.OpenAltar(onSubmit);
+
+        /// <summary>Show a brief environmental/oblique response line above the action bar.</summary>
+        public void ShowWorldText(string text)
+        {
+            _worldTextLabel.Text    = text;
+            _worldTextLabel.Visible = true;
+            _worldTextTimer         = 3.5f;
+            _worldTextLabel.Modulate = new Color(1, 1, 1, 1);
+        }
 
         // ── Survival events ───────────────────────────────────────────────
 
@@ -213,6 +273,25 @@ namespace AinSoph
             _dialogue = new DialogueScreen();
             _dialogue.Name = "DialogueScreen";
             AddChild(_dialogue);
+
+            _primitiveMenu = new PrimitiveMenu();
+            _primitiveMenu.Name = "PrimitiveMenu";
+            _primitiveMenu.OnPrimitiveChosen += OnPrimitiveChosen;
+            AddChild(_primitiveMenu);
+
+            // World text — oblique/environmental responses, fades out above action bar
+            var hudLayer = new CanvasLayer();
+            hudLayer.Layer = 9; // just below HUD
+            AddChild(hudLayer);
+
+            _worldTextLabel = new Label();
+            _worldTextLabel.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.68f));
+            _worldTextLabel.AddThemeFontSizeOverride("font_size", 14);
+            _worldTextLabel.HorizontalAlignment = HorizontalAlignment.Center;
+            _worldTextLabel.Visible = false;
+            // Positioned just above the action bar — set after viewport is known
+            CallDeferred(MethodName.PositionWorldText);
+            hudLayer.AddChild(_worldTextLabel);
         }
 
         private void OnSkillSelected(int skillType)
@@ -226,6 +305,13 @@ namespace AinSoph
             }
         }
 
+        private void PositionWorldText()
+        {
+            var vp = GetViewport().GetVisibleRect().Size;
+            _worldTextLabel.Size     = new Vector2(vp.X - 80, 28);
+            _worldTextLabel.Position = new Vector2(40, vp.Y - 100);
+        }
+
         private Vector2I TileToCell(Vector2I tile) =>
             new Vector2I(
                 tile.X < 0 ? (tile.X - 7) / 8 : tile.X / 8,
@@ -233,7 +319,7 @@ namespace AinSoph
             );
 
         // ── Signals ───────────────────────────────────────────────────────
-        [Signal] public delegate void PlayerSpokeEventHandler(string npcId, string text);
+        [Signal] public delegate void PrimitiveUsedEventHandler(string targetId, int skillType);
         [Signal] public delegate void AltarPetitionEventHandler(string petition);
     }
 }

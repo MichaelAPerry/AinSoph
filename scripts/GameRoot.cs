@@ -203,7 +203,7 @@ public partial class GameRoot : Node
             scene.SaveMgr     = Save;
             scene.AltarCellId = Altar?.CellId ?? "";
 
-            scene.PlayerSpoke    += OnPlayerSpoke;
+            scene.PrimitiveUsed  += OnPrimitiveUsed;
             scene.AltarPetition  += OnAltarPetition;
 
             AddChild(scene);
@@ -538,25 +538,77 @@ public partial class GameRoot : Node
     // ── WorldScene reference ──────────────────────────────────────────────
     private WorldScene? _worldScene;
 
-    private void OnPlayerSpoke(string npcId, string text)
+    private async void OnPrimitiveUsed(string targetId, int skillType)
     {
-        // Opening a dialogue: subscribe to the NPC's next decision event
-        var npc = LiveNpcs.Find(n => n.NpcId == npcId);
-        if (npc == null || _worldScene == null) return;
+        if (_worldScene == null || Interactions == null || Player == null) return;
 
-        // One-shot: update dialogue when the NPC's next think produces speech
-        void Handler(NpcBrain brain, NpcDecision decision)
+        var skill = (Skills.SkillType)skillType;
+
+        // Build the interaction request
+        var req = new Skills.InteractionRequest
         {
-            npc.OnDecision -= Handler;
-            var reply = string.IsNullOrEmpty(decision.Speech) ? "..." : decision.Speech;
-            _worldScene.SetDialogueSpeech(reply);
-            _worldScene.SetNpcState(npcId, npc.State);
+            ActorId    = Player.Id,
+            Primitive  = skill.ToString().ToLower(),
+            TargetId   = targetId,
+            TargetName = targetId,
+        };
+
+        // Determine target type
+        if (targetId.StartsWith("tile:"))
+        {
+            req.TargetType = Skills.InteractionTarget.Tile;
+        }
+        else if (LiveNpcs.Exists(n => n.NpcId == targetId))
+        {
+            req.TargetType = Skills.InteractionTarget.Npc;
+        }
+        else if (LiveAnimals.Exists(a => a.AnimalId == targetId))
+        {
+            req.TargetType = Skills.InteractionTarget.Animal;
+        }
+        else
+        {
+            req.TargetType = Skills.InteractionTarget.Item;
         }
 
-        npc.OnDecision += Handler;
+        // Talk → open dialogue screen then let the NPC's next think reply
+        if (skill == Skills.SkillType.Talk && req.TargetType == Skills.InteractionTarget.Npc)
+        {
+            var npc = LiveNpcs.Find(n => n.NpcId == targetId);
+            if (npc != null)
+            {
+                var npcSave = Save?.LoadNpc(targetId);
+                var name    = npcSave?.Name ?? "Traveller";
+                _worldScene.OpenNpcDialogueFull(
+                    targetId, name, npc.Decan.Id, targetId.GetHashCode(),
+                    "...",
+                    (text) => OnPrimitiveUsed(targetId, (int)Skills.SkillType.Talk)
+                );
+                // Subscribe to NPC's next decision for the reply
+                void Handler(NpcBrain brain, NpcDecision decision)
+                {
+                    npc.OnDecision -= Handler;
+                    var reply = string.IsNullOrEmpty(decision.Speech) ? "..." : decision.Speech;
+                    _worldScene.SetDialogueSpeech(reply);
+                    _worldScene.SetNpcState(targetId, npc.State);
+                }
+                npc.OnDecision += Handler;
+                NpcQueue?.Prioritize(new[] { targetId });
+            }
+            return;
+        }
 
-        // Prioritize this NPC so it thinks soon
-        NpcQueue?.Prioritize(new[] { npcId });
+        // Pray at altar → open altar screen
+        if (skill == Skills.SkillType.Pray && Altar != null)
+        {
+            _worldScene.OpenAltar((petition) => OnAltarPetition(petition));
+            return;
+        }
+
+        // All other primitives → resolve and show world text
+        var result = await Interactions.ResolveAsync(req, _cts.Token);
+        if (!string.IsNullOrEmpty(result.WorldText))
+            _worldScene.ShowWorldText(result.WorldText);
     }
 
     private async void OnAltarPetition(string petition)
