@@ -1,0 +1,27 @@
+# Godot generated
+.godot/
+*.uid
+
+# .NET / C# build artifacts
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.DotSettings.user
+
+# Godot export templates
+export_presets.cfg
+
+# NuGet
+packages/
+*.nupkg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model weights — never commit these, they are large binary files
+data/*.gguf
+data/*.bin
+data/*.pth
