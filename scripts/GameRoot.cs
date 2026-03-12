@@ -122,6 +122,7 @@ public partial class GameRoot : Node
         // 7. Player
         var playerData = Save.LoadPlayer();
         var nowUtc     = DateTime.UtcNow;
+        bool isNewPlayer = playerData is null;
 
         if (playerData is not null)
         {
@@ -226,6 +227,19 @@ public partial class GameRoot : Node
 
             _worldScene = scene;
             GD.Print("GameRoot: WorldScene ready");
+
+            // New player — show naming screen on top of the world
+            if (isNewPlayer)
+            {
+                var creation = new AinSoph.UI.CharacterCreationScreen();
+                AddChild(creation);
+                creation.Show((name) =>
+                {
+                    Player!.Name = string.IsNullOrWhiteSpace(name) ? "Unnamed" : name;
+                    GD.Print($"GameRoot: player named '{Player.Name}'");
+                    SaveAll();
+                });
+            }
         }
         else
         {
