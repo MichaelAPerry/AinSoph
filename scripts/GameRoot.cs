@@ -65,18 +65,17 @@ public partial class GameRoot : Node
     {
         GD.Print("Ain Soph — booting");
 
+        // 1. Model extraction (first launch) — boots rest of world in callback
+        var bootScreen = new AinSoph.UI.ModelBootScreen();
+        AddChild(bootScreen);
+        bootScreen.OnReady += BootWithModel;
+    }
+
+    private void BootWithModel(string modelPath)
+    {
         // 1. LLM
-        var modelPath = ProjectSettings.GlobalizePath(ModelSubPath);
-        if (System.IO.File.Exists(modelPath))
-        {
-            Llm.Initialize(modelPath);
-            GD.Print("GameRoot: LLM ready");
-        }
-        else
-        {
-            GD.PrintErr($"GameRoot: model not found at {ModelSubPath}. " +
-                        $"Place qwen2.5-3b.gguf there before launching.");
-        }
+        Llm.Initialize(modelPath);
+        GD.Print("GameRoot: LLM ready");
 
         // 2. Decans
         DecanRegistry.Load("res://data/ain_soph_72.json");

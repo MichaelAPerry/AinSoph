@@ -1,27 +1,20 @@
-# Godot generated
+# Godot build output
 .godot/
-*.uid
+build/
 
-# .NET / C# build artifacts
+# .NET
 bin/
 obj/
-.vs/
 *.user
-*.suo
-*.DotSettings.user
 
-# Godot export templates
-export_presets.cfg
+# Model files — too large for git (bundle in PCK at export time only)
+*.gguf
+*.ggml
+*.bin
 
-# NuGet
-packages/
-*.nupkg
+# Keep the models/ directory itself
+!models/.gdkeep
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Model weights — never commit these, they are large binary files
-data/*.gguf
-data/*.bin
-data/*.pth
