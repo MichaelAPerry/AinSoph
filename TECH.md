@@ -114,3 +114,35 @@ Qwen 2.5 3B. Apache 2.0 license — fully open, compatible with Godot (MIT) and 
 ### LLAMA INTEGRATION
 
 LLamaSharp. The .NET binding for llama.cpp. This is how the game calls Qwen — for NPC dialogue, for the Triune Council's three sequential passes, for all LLM inference. It is a standard .NET package reference.
+
+---
+
+### PERSISTENCE
+
+**Format:** JSON. One file per cell, one file per player. Stored in a folder on the player's local machine. Small, human-readable, moddable. No database.
+
+**Save interval:** Every 5 real minutes.
+
+**Scope:** Local. Each player owns and saves their own world. Save states can be exported and traded. Worlds can open to each other to allow NPCs and PCs to migrate.
+
+---
+
+### NPC SIMULATION
+
+All NPCs tick fully regardless of whether a player is nearby. The world does not pause for unloaded cells.
+
+**LLM queue:** NPC think calls are processed one at a time through a background queue. NPCs near a player are prioritized to the front. The queue runs continuously.
+
+**Queue cap:** 45 real minutes. If the full NPC population cannot be cycled within 45 minutes, NPCs are dropped from the bottom of the queue until the load fits the hardware. The world scales to the machine. A bigger machine runs a bigger world.
+
+---
+
+### ROUTES
+
+A route is the opening between two player worlds. It allows NPCs and PCs to physically move between spheres.
+
+**Initiation:** Both players must agree to open a route. Neither can open unilaterally.
+
+**Migration:** When a route is open, up to 1/10th of the population near each border migrates automatically in either direction. Selection is random. The migrating NPC's decan and all four memory slots travel intact.
+
+**Lineage:** Migrating progeny carry lineage from their origin world. Lineage is append-only — it grows, it is never edited.
