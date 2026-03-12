@@ -86,6 +86,12 @@ public class SaveManager
     public void SavePlayer(PlayerSaveData data) =>
         WriteJson(Path.Combine(_saveDir, "player.json"), data);
 
+    public void DeletePlayer()
+    {
+        var path = Path.Combine(_saveDir, "player.json");
+        if (File.Exists(path)) File.Delete(path);
+    }
+
     public PlayerSaveData? LoadPlayer()
     {
         var path = Path.Combine(_saveDir, "player.json");

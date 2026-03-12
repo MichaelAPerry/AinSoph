@@ -65,7 +65,10 @@ public class RouteManager
         _save.ExportMigrationPacket(saveData, outputPath);
 
         foreach (var npc in pool)
+        {
             _worldNpcs.Remove(npc);
+            _save.DeleteNpc(npc.NpcId); // remove from disk so they don't respawn
+        }
 
         GD.Print($"RouteManager: {pool.Count} exported — {_worldNpcs.Count} remain");
         return pool.Count;

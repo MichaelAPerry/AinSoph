@@ -187,8 +187,58 @@ namespace AinSoph
 
         private void ApplyPlayerMove(Vector2I newTile)
         {
-            _primitiveMenu?.Close(); // moving dismisses the menu
+            _primitiveMenu?.Close();
+
+            // Cave exit — if leaving a cave tile
+            if (Player != null && WasOnCaveTile())
+            {
+                GameRoot.ReleaseCave(_playerTile.X, _playerTile.Y, Player.Id);
+                Player.Survival.ExitCave();
+            }
+
             _playerTile = newTile;
+
+            // Cave entry — if landing on a cave tile
+            if (Player != null)
+            {
+                var cell = Grid?.GetOrGenerate(_playerTile.X / 8, _playerTile.Y / 8);
+                var tile = cell?.GetTile(_playerTile.X % 8, _playerTile.Y % 8);
+                if (tile?.HasCave == true)
+                {
+                    bool claimed = GameRoot.TryClaimCave(_playerTile.X, _playerTile.Y, Player.Id);
+                    if (claimed)
+                        Player.Survival.EnterCave();
+                    // else occupied — player enters but is not safe (no claim)
+                }
+            }
+        }
+
+        private bool WasOnCaveTile()
+        {
+            var cell = Grid?.GetIfLoaded(_playerTile.X / 8, _playerTile.Y / 8);
+            return cell?.GetTile(_playerTile.X % 8, _playerTile.Y % 8)?.HasCave == true;
+        }
+
+        private void OnSleepRequested()
+        {
+            var player = Player;
+            if (player == null) return;
+
+            if (player.Survival.IsSleeping)
+            {
+                // Wake up
+                player.Survival.EndSleep(DateTime.UtcNow);
+                ShowWorldText("You wake.");
+            }
+            else
+            {
+                // Sleep — safe only in a claimed cave
+                player.Survival.BeginSleep(DateTime.UtcNow, player.Survival.IsInCave);
+                ShowWorldText(player.Survival.IsInCave
+                    ? "You sleep. The cave holds you."
+                    : "You sleep in the open. You are exposed.");
+            }
+        }
 
             if (Player != null)
             {
@@ -250,6 +300,14 @@ namespace AinSoph
             _worldTextLabel.Modulate = new Color(1, 1, 1, 1);
         }
 
+        /// <summary>Reposition the player sprite and camera after death/respawn.</summary>
+        public void MovePlayerTo(Vector2I tile)
+        {
+            _playerTile = tile;
+            if (_camera != null)
+                _camera.GlobalPosition = new Vector2(tile.X * 32 + 16, tile.Y * 32 + 16);
+        }
+
         // ── Survival events ───────────────────────────────────────────────
 
         private void OnPlayerDied() => _hud.ShowWarning("YOU HAVE DIED");
@@ -291,6 +349,9 @@ namespace AinSoph
 
             _hud.Connect(HUD.SignalName.RoutesOpenRequested,
                 Callable.From(() => _routesScreen.Open()));
+
+            _hud.Connect(HUD.SignalName.SleepRequested,
+                Callable.From(OnSleepRequested));
 
             // World text — oblique/environmental responses, fades out above action bar
             var hudLayer = new CanvasLayer();

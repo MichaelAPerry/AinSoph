@@ -312,12 +312,53 @@ public partial class GameRoot : Node
             if (result.SleepWarning)  _worldScene?.ShowWorldText("⚠ You must sleep within the hour. ⚠");
             if (result.IsDead)
             {
-                var body = Items?.SpawnBody(Player.Name, Player.TileX, Player.TileY);
-                _worldScene?.ShowWorldText("You have died.");
+                // Drop corpse — body persists in world
+                Items?.SpawnBody(Player.Name, Player.TileX, Player.TileY);
+
+                // Release any cave claim
+                ReleaseCave(Player.TileX, Player.TileY, Player.Id);
+
+                // Delete old player save
+                Save?.DeletePlayer();
+
                 GD.Print($"GameRoot: player '{Player.Name}' died");
-                // TODO: trigger new character creation flow
+                Player = null;
+
+                // New character — show creation screen, spawn near a cave
+                _worldScene?.ShowWorldText("You have died. A new light descends.");
+                CallDeferred(MethodName.SpawnNewPlayer);
             }
         }
+    }
+
+    private void SpawnNewPlayer()
+    {
+        if (Grid == null || Save == null) return;
+
+        var rng       = new Random();
+        var spawnCell = Grid.FindCaveCell(rng, radius: 3) ?? Grid.GetOrGenerate(0, 0);
+        var nowUtc    = DateTime.UtcNow;
+
+        Player = new PlayerCharacter(nowUtc)
+        {
+            Id     = $"player:{Guid.NewGuid():N}",
+            TileX  = spawnCell.GridX * 8 + 4,
+            TileY  = spawnCell.GridY * 8 + 4,
+            CellId = $"{spawnCell.GridX},{spawnCell.GridY}"
+        };
+
+        var spawnTile = new Vector2I(Player.TileX, Player.TileY);
+
+        // Show naming screen — world keeps running behind it
+        var creation = new AinSoph.UI.CharacterCreationScreen();
+        AddChild(creation);
+        creation.Show((name) =>
+        {
+            Player!.Name = string.IsNullOrWhiteSpace(name) ? "Unnamed" : name;
+            GD.Print($"GameRoot: new player '{Player.Name}' descends");
+            _worldScene?.MovePlayerTo(spawnTile);
+            SaveAll();
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -662,6 +703,16 @@ public partial class GameRoot : Node
     public override void _ExitTree()
     {
         _cts.Cancel();
+
+        // Logout = sleeping. Character persists in world in sleep state.
+        // If in a cave, they're safe. If exposed, they're vulnerable.
+        if (Player != null && !Player.Survival.IsSleeping)
+        {
+            Player.Survival.BeginSleep(DateTime.UtcNow, Player.Survival.IsInCave);
+            GD.Print($"GameRoot: player '{Player.Name}' logged out — sleeping " +
+                     $"{(Player.Survival.IsInCave ? "in cave (safe)" : "exposed (vulnerable)")}");
+        }
+
         Player?.EndSession(DateTime.UtcNow);
         SaveAll();
         Llm.Dispose();
@@ -672,38 +723,60 @@ public partial class GameRoot : Node
     // Helpers
     // -------------------------------------------------------------------------
 
-    // ── NPC decision handler ──────────────────────────────────────────────
+    // ── Cave occupancy ────────────────────────────────────────────────────────
 
-    private void OnNpcDecision(NpcBrain npc, NpcDecision decision)
+    /// <summary>
+    /// Try to claim the cave in the cell at these tile coords for an entity.
+    /// Returns true if the cave was unclaimed or already owned by this entity.
+    /// Writes to disk immediately.
+    /// </summary>
+    public static bool TryClaimCave(int tileX, int tileY, string entityId)
     {
-        if (decision.ParsedState == NPC.NpcState.Eating &&
-            !string.IsNullOrEmpty(decision.EatItemId) &&
-            Items != null)
-        {
-            // Get tile coords from save (NpcBrain only tracks CellId in memory)
-            var saved = Save?.LoadNpc(npc.NpcId);
-            int tx = saved?.TileX ?? 0;
-            int ty = saved?.TileY ?? 0;
-            ConsumeItemFromTile(decision.EatItemId, tx, ty);
-        }
+        if (Save == null || Grid == null) return false;
+        int cx = tileX / 8, cy = tileY / 8;
+        var cell = Grid.GetOrGenerate(cx, cy);
+        if (!cell.HasCave) return false;
+
+        var saved = Save.LoadCell(cx, cy) ?? new Data.CellSaveData
+            { GridX = cx, GridY = cy, Biome = cell.Biome.ToString() };
+
+        if (saved.CaveOccupant != null && saved.CaveOccupant != entityId)
+            return false; // occupied by someone else
+
+        saved.CaveOccupant = entityId;
+        Save.SaveCell(saved);
+        return true;
     }
 
-    private void ConsumeItemFromTile(string itemId, int tileX, int tileY)
+    /// <summary>Release the cave claim at these tile coords if held by this entity.</summary>
+    public static void ReleaseCave(int tileX, int tileY, string entityId)
     {
+        if (Save == null || Grid == null) return;
+        int cx = tileX / 8, cy = tileY / 8;
+        var saved = Save.LoadCell(cx, cy);
+        if (saved == null || saved.CaveOccupant != entityId) return;
+        saved.CaveOccupant = null;
+        Save.SaveCell(saved);
+    }
+
+    private static void OnNpcDecision(NpcBrain npc, NpcDecision decision)
+    {
+        if (decision.ParsedState != NPC.NpcState.Eating) return;
         if (Items == null) return;
 
-        Items.Consume(itemId);
+        var saved = Save?.LoadNpc(npc.NpcId);
+        int tx = saved?.TileX ?? 0;
+        int ty = saved?.TileY ?? 0;
 
-        // Remove from tile.ItemIds so it no longer appears in situation context
-        int cx = tileX < 0 ? (tileX - 7) / 8 : tileX / 8;
-        int cy = tileY < 0 ? (tileY - 7) / 8 : tileY / 8;
-        var cell = Grid?.GetIfLoaded(cx, cy);
-        if (cell == null) return;
+        // Find item by id or nearest edible
+        var item = Items.All.FirstOrDefault(i => i.Id == decision.EatItemId)
+                ?? Items.NearestEdible(tx, ty);
 
-        int lx = tileX - cx * 8;
-        int ly = tileY - cy * 8;
-        if (lx >= 0 && lx < 8 && ly >= 0 && ly < 8)
-            cell.GetTile(lx, ly).ItemIds.Remove(itemId);
+        if (item != null && item.Edible)
+        {
+            Items.Remove(item.Id);
+            npc.Survival.RecordEat(DateTime.UtcNow);
+        }
     }
 
     // ── WorldScene reference ──────────────────────────────────────────────    private static WorldScene? _worldScene;

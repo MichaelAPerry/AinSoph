@@ -26,10 +26,12 @@ namespace AinSoph.UI
         private HBoxContainer _slotRow;
         private Label         _clockLabel;
         private Label         _warningLabel;
+        private Button        _sleepBtn;
 
         // ── State ────────────────────────────────────────────────────────────
         private List<SkillType> _unlockedSkills = new();
         private SkillType?      _selectedSkill  = null;
+        private bool            _isSleeping     = false;
 
         // Warning timer (shows warning for 3 seconds, then fades)
         private float _warningTimer = 0f;
@@ -62,6 +64,7 @@ namespace AinSoph.UI
         public override void _Process(double delta)
         {
             UpdateClock();
+            UpdateSleepButton();
 
             if (_warningTimer > 0f)
             {
@@ -78,6 +81,14 @@ namespace AinSoph.UI
         {
             _unlockedSkills = new List<SkillType>(unlocked);
             RebuildSlots();
+        }
+
+        /// <summary>Tell the HUD whether the player is currently sleeping.</summary>
+        public void SetSleeping(bool sleeping)
+        {
+            _isSleeping = sleeping;
+            if (_sleepBtn != null)
+                _sleepBtn.Text = sleeping ? "WAKE" : "SLEEP";
         }
 
         /// <summary>Flash a warning in the centre of the screen for 4 seconds.</summary>
@@ -132,6 +143,20 @@ namespace AinSoph.UI
             _warningLabel.Size     = new Vector2(400, 40);
             _warningLabel.Visible  = false;
             AddChild(_warningLabel);
+
+            // ── SLEEP button — appears after 8h awake, left of ROUTES ──
+            _sleepBtn = new Button();
+            _sleepBtn.Text     = "SLEEP";
+            _sleepBtn.Size     = new Vector2(64, 38);
+            _sleepBtn.Position = new Vector2(w - 162, (barH - 38) / 2f);
+            _sleepBtn.Visible  = false; // shown only when eligible
+            _sleepBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.08f, 0.12f, 0.10f)));
+            _sleepBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.14f, 0.22f, 0.18f)));
+            _sleepBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.11f, 0.17f, 0.14f)));
+            _sleepBtn.AddThemeFontSizeOverride("font_size", 10);
+            _sleepBtn.AddThemeColorOverride("font_color", new Color(0.55f, 0.78f, 0.60f));
+            _sleepBtn.Pressed += () => EmitSignal(SignalName.SleepRequested);
+            _actionBarPanel.AddChild(_sleepBtn);
 
             // ── ROUTES button — far right of action bar ──
             var routesBtn = new Button();
@@ -238,8 +263,23 @@ namespace AinSoph.UI
             return s;
         }
 
+        private void UpdateSleepButton()
+        {
+            if (_sleepBtn == null) return;
+            var player = AinSoph.GameRoot.Player;
+            if (player == null) { _sleepBtn.Visible = false; return; }
+
+            bool isSleeping = player.Survival.IsSleeping;
+            double hoursAwake = (DateTime.UtcNow - player.Survival.LastSleptUtc).TotalHours;
+
+            // Show SLEEP after 8h awake (eligible), always show WAKE if sleeping
+            _sleepBtn.Visible = isSleeping || hoursAwake >= 8.0;
+            _sleepBtn.Text    = isSleeping ? "WAKE" : "SLEEP";
+        }
+
         // ── Signals ──────────────────────────────────────────────────────────
         [Signal] public delegate void SkillSelectedEventHandler(int skillType);
         [Signal] public delegate void RoutesOpenRequestedEventHandler();
+        [Signal] public delegate void SleepRequestedEventHandler();
     }
 }

@@ -13,6 +13,7 @@ public class CellSaveData
     public int       GridY   { get; set; }
     public string    Biome   { get; set; } = string.Empty;
     public string?   CaveId  { get; set; }
+    public string?   CaveOccupant { get; set; } // entity id holding the cave, null if empty
     public List<TileSaveData>   Tiles   { get; set; } = new();
     public List<ItemSaveData>   Items   { get; set; } = new();
     public List<AnimalSaveData> Animals { get; set; } = new();

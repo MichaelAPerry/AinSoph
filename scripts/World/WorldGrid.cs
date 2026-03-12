@@ -73,6 +73,20 @@ public class WorldGrid
     // -------------------------------------------------------------------------
 
     /// <summary>
+    /// <summary>Find a cave cell within the given radius. Returns null if none found.</summary>
+    public WorldCell? FindCaveCell(Random rng, int radius = 3)
+    {
+        var candidates = new System.Collections.Generic.List<WorldCell>();
+        for (var dx = -radius; dx <= radius; dx++)
+        for (var dy = -radius; dy <= radius; dy++)
+        {
+            var cell = GetOrGenerate(dx, dy);
+            if (cell.HasCave) candidates.Add(cell);
+        }
+        if (candidates.Count == 0) return null;
+        return candidates[rng.Next(candidates.Count)];
+    }
+
     /// Find a valid player start position: a random cell within 3 grid squares of a cave.
     /// Generates cells as needed until a valid start is found.
     /// </summary>
