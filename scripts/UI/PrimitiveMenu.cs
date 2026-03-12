@@ -39,7 +39,7 @@ namespace AinSoph.UI
         private static readonly SkillType[] Primitives =
         {
             SkillType.Move, SkillType.See, SkillType.Hear,
-            SkillType.Talk, SkillType.Kill, SkillType.Pray
+            SkillType.Talk, SkillType.Reap, SkillType.Pray
         };
 
         public override void _Ready()
@@ -172,7 +172,7 @@ namespace AinSoph.UI
             SkillType.See   => NPC.NpcState.Idle,
             SkillType.Hear  => NPC.NpcState.Idle,
             SkillType.Talk  => NPC.NpcState.Talking,
-            SkillType.Kill  => NPC.NpcState.Creating,
+            SkillType.Reap  => NPC.NpcState.Creating,
             SkillType.Pray  => NPC.NpcState.Praying,
             _               => NPC.NpcState.Idle
         };

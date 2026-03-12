@@ -69,7 +69,7 @@ namespace AinSoph
             if (Player != null)
                 _hud.SetSkills(new List<SkillType>
                     { SkillType.Move, SkillType.See, SkillType.Hear,
-                      SkillType.Talk, SkillType.Kill, SkillType.Pray });
+                      SkillType.Talk, SkillType.Reap, SkillType.Pray });
         }
 
         public override void _Process(double delta)

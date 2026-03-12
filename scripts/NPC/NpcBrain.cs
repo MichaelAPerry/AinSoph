@@ -28,6 +28,9 @@ public class NpcBrain
     public bool BrokenHear  { get; set; }
     public bool BrokenTalk  { get; set; }
 
+    // Foreigner — set on arrival via route, permanent
+    public bool IsForeigner { get; set; }
+
     /// <summary>
     /// Roll birth impairment for a newly created NPC.
     /// Rates from SKILLS.md — real-world natural occurrence.
@@ -124,7 +127,7 @@ public class NpcBrain
     private async Task ThinkAsync(SituationContext situation, DateTime now,
         CancellationToken ct)
     {
-        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk);
+        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner);
         var userMessage  = NpcPromptBuilder.BuildUserMessage(Memory, situation);
 
         string raw;
@@ -144,6 +147,19 @@ public class NpcBrain
         {
             GD.PrintErr($"NpcBrain [{NpcId}]: could not parse decision from: {raw}");
             return;
+        }
+
+        // Foreigner enforcement — engine layer, not just prompt layer
+        // If a crafted memory slot tricks the LLM into returning a forbidden state, override it.
+        if (IsForeigner)
+        {
+            if (decision.ParsedState == NpcState.Creating || decision.ParsedState == NpcState.Praying)
+            {
+                GD.Print($"NpcBrain [{NpcId}]: foreigner attempted {decision.ParsedState} — overridden to Idle");
+                decision.ParsedState = NpcState.Idle;
+                decision.CreationType = string.Empty;
+                decision.CreationIntent = string.Empty;
+            }
         }
 
         ApplyDecision(decision, now);
@@ -195,7 +211,7 @@ public class NpcBrain
     public async Task<string> RespondToDialogueAsync(string playerMessage,
         SituationContext situation, CancellationToken ct = default)
     {
-        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk);
+        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner);
 
         var context = NpcPromptBuilder.BuildUserMessage(Memory, situation);
         var currentActivity = State switch

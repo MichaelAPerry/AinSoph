@@ -82,6 +82,9 @@ public class NpcSaveData
     public bool BrokenHear  { get; set; }
     public bool BrokenTalk  { get; set; }
 
+    // Foreigner — arrived via route, permanent
+    public bool IsForeigner { get; set; }
+
     // Lineage — append only, never edited
     public List<string> Lineage { get; set; } = new();
 }

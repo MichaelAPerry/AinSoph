@@ -1,4 +1,5 @@
 using AinSoph.Council;
+using AinSoph.Data;
 using AinSoph.NPC;
 using AinSoph.Player;
 using AinSoph.World;
@@ -70,7 +71,7 @@ public class InteractionResolver
             PrimitiveSkills.See   => ResolveSee(req),
             PrimitiveSkills.Hear  => ResolveHear(req),
             PrimitiveSkills.Talk  => ResolveTalk(req),
-            PrimitiveSkills.Kill  => ResolveKill(req),
+            PrimitiveSkills.Reap  => ResolveReap(req),
             PrimitiveSkills.Pray  => await ResolvePrayAsync(req, ct),
             _                     => Oblique()
         };
@@ -150,22 +151,50 @@ public class InteractionResolver
     }
 
     // -------------------------------------------------------------------------
-    // Kill
+    // Reap — kills living targets, consumes edible items
     // -------------------------------------------------------------------------
 
-    private InteractionResult ResolveKill(InteractionRequest req)
+    private InteractionResult ResolveReap(InteractionRequest req)
     {
+        // Reap on a living entity — kill resolution handled by KillResolver in GameRoot
         if (req.TargetType == InteractionTarget.Npc ||
             req.TargetType == InteractionTarget.Animal)
-            return new InteractionResult { Success = true,
-                WorldText = string.Empty }; // kill roll handled by KillResolver
+            return new InteractionResult { Success = true, WorldText = string.Empty };
 
+        // Reap on an item — check if edible
         if (req.TargetType == InteractionTarget.Item)
+        {
+            var registry = AinSoph.GameRoot.Items;
+            var player   = AinSoph.GameRoot.Player;
+
+            if (registry == null || player == null)
+                return Oblique();
+
+            // Find the specific item by id, or nearest edible near the player
+            AinSoph.Data.ItemSaveData? item = null;
+            if (!string.IsNullOrEmpty(req.TargetId) && !req.TargetId.StartsWith("tile:"))
+                item = registry.All.FirstOrDefault(i => i.Id == req.TargetId);
+
+            if (item == null)
+                item = registry.NearestEdible(player.TileX, player.TileY);
+
+            if (item == null || !item.Edible)
+                return new InteractionResult
+                {
+                    Success   = false,
+                    WorldText = "There is nothing here to consume."
+                };
+
+            // Consume it — remove from world, record eat
+            registry.Remove(item.Id);
+            player.Survival.RecordEat(System.DateTime.UtcNow);
+
             return new InteractionResult
             {
-                Success   = false,
-                WorldText = PickOblique()
+                Success   = true,
+                WorldText = $"You reap the {item.Name}. The hunger recedes."
             };
+        }
 
         return Oblique();
     }

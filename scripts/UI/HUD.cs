@@ -13,7 +13,7 @@ namespace AinSoph.UI
     ///   │                                          UTC 14:23 │  ← clock
     ///   │        ⚠ SLEEP IN 1 HOUR ⚠                        │  ← warning (hour 23 only)
     ///   ├───────────────────────────────────────────────────-┤
-    ///   │  [Move] [See] [Hear] [Talk] [Kill] [Pray]  ...     │  ← action bar
+    ///   │  [Move] [See] [Hear] [Talk] [Reap] [Pray]  ...     │  ← action bar
     ///   └────────────────────────────────────────────────────┘
     ///
     /// Action bar slots expand as the player gains skills via the Council.
@@ -49,7 +49,7 @@ namespace AinSoph.UI
             [SkillType.See]   = 20,
             [SkillType.Hear]  = 107,
             [SkillType.Talk]  = 95,
-            [SkillType.Kill]  = 92,
+            [SkillType.Reap]  = 92,
             [SkillType.Pray]  = 94,
         };
 
@@ -135,7 +135,7 @@ namespace AinSoph.UI
 
             // Build initial slots with the 6 primitives
             var primitives = new List<SkillType>
-                { SkillType.Move, SkillType.See, SkillType.Hear, SkillType.Talk, SkillType.Kill, SkillType.Pray };
+                { SkillType.Move, SkillType.See, SkillType.Hear, SkillType.Talk, SkillType.Reap, SkillType.Pray };
             SetSkills(primitives);
         }
 
@@ -146,7 +146,7 @@ namespace AinSoph.UI
 
             // All 6 primitives always visible; additional Council skills append
             var allSkills = new List<SkillType>
-                { SkillType.Move, SkillType.See, SkillType.Hear, SkillType.Talk, SkillType.Kill, SkillType.Pray };
+                { SkillType.Move, SkillType.See, SkillType.Hear, SkillType.Talk, SkillType.Reap, SkillType.Pray };
 
             foreach (var skill in _unlockedSkills)
                 if (!allSkills.Contains(skill))

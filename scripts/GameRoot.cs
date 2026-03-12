@@ -588,6 +588,7 @@ public partial class GameRoot : Node
                 BrokenSee     = npc.BrokenSee,
                 BrokenHear    = npc.BrokenHear,
                 BrokenTalk    = npc.BrokenTalk,
+                IsForeigner   = npc.IsForeigner,
             });
         }
 
