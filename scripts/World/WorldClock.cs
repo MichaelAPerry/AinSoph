@@ -5,7 +5,7 @@ namespace AinSoph.World;
 /// 24 real hours = 24 game hours. No compression, no expansion.
 /// Skills that cost time cost real time.
 /// </summary>
-public static class WorldClock
+public class WorldClock
 {
     /// <summary>Current UTC time. Always the real clock.</summary>
     public static DateTime NowUtc => DateTime.UtcNow;
