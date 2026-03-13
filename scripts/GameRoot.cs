@@ -840,8 +840,9 @@ public partial class GameRoot : Node
             {
                 var npcSave = Save?.LoadNpc(targetId);
                 var name    = npcSave?.Name ?? "Traveller";
+                var decanId = int.TryParse(npc.Decan.Id, out var did) ? did : npc.Decan.Id.GetHashCode();
                 _worldScene.OpenNpcDialogueFull(
-                    targetId, name, npc.Decan.Id, targetId.GetHashCode(),
+                    targetId, name, decanId, targetId.GetHashCode(),
                     "...",
                     (text) => OnPrimitiveUsed(targetId, (int)Skills.SkillType.Talk)
                 );
