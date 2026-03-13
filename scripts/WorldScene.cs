@@ -198,6 +198,12 @@ namespace AinSoph
 
             _playerTile = newTile;
 
+            if (Player != null)
+            {
+                Player.TileX = newTile.X;
+                Player.TileY = newTile.Y;
+            }
+
             // Cave entry — if landing on a cave tile
             if (Player != null)
             {
@@ -208,42 +214,7 @@ namespace AinSoph
                     bool claimed = GameRoot.TryClaimCave(_playerTile.X, _playerTile.Y, Player.Id);
                     if (claimed)
                         Player.Survival.EnterCave();
-                    // else occupied — player enters but is not safe (no claim)
                 }
-            }
-        }
-
-        private bool WasOnCaveTile()
-        {
-            var cell = Grid?.GetIfLoaded(_playerTile.X / 8, _playerTile.Y / 8);
-            return cell?.GetTile(_playerTile.X % 8, _playerTile.Y % 8)?.HasCave == true;
-        }
-
-        private void OnSleepRequested()
-        {
-            var player = Player;
-            if (player == null) return;
-
-            if (player.Survival.IsSleeping)
-            {
-                // Wake up
-                player.Survival.EndSleep(DateTime.UtcNow);
-                ShowWorldText("You wake.");
-            }
-            else
-            {
-                // Sleep — safe only in a claimed cave
-                player.Survival.BeginSleep(DateTime.UtcNow, player.Survival.IsInCave);
-                ShowWorldText(player.Survival.IsInCave
-                    ? "You sleep. The cave holds you."
-                    : "You sleep in the open. You are exposed.");
-            }
-        }
-
-            if (Player != null)
-            {
-                Player.TileX = newTile.X;
-                Player.TileY = newTile.Y;
             }
 
             _renderer.Refresh(newTile);
