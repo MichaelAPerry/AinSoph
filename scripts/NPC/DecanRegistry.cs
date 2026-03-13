@@ -43,7 +43,7 @@ public static class DecanRegistry
         _all.Clear();
         _byId.Clear();
 
-        foreach (JsonElement entry in arr)
+        foreach (JsonElement entry in arr.EnumerateArray())
         {
             var seed = new DecanSeed
             {
