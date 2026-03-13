@@ -73,14 +73,18 @@ public partial class GameRoot : Node
 
     private void BootWithModel(string modelPath)
     {
-        // 1. LLM
-        Llm.Initialize(modelPath);
-        GD.Print("GameRoot: LLM ready");
+        try
+        {
+            // 1. LLM
+            Llm.Initialize(modelPath);
+            GD.Print("GameRoot: LLM ready");
 
-        // 2. Decans
-        DecanRegistry.Load("res://data/ain_soph_72.json");
+            // 2. Decans
+            GD.Print("GameRoot: loading decans...");
+            DecanRegistry.Load("res://data/ain_soph_72.json");
 
         // 3. Save manager — load existing world or create new
+        GD.Print("GameRoot: initializing save manager...");
         var saveDir = ProjectSettings.GlobalizePath(SaveSubPath);
         Save        = new SaveManager(saveDir);
 
@@ -108,6 +112,7 @@ public partial class GameRoot : Node
         }
 
         // 4. World grid + altar
+        GD.Print("GameRoot: generating world grid + altar...");
         Grid  = new WorldGrid(worldSeed);
         Altar = Altar.Place(Grid, worldSeed);
         GD.Print($"GameRoot: altar placed at {Altar.CellId} " +
@@ -208,6 +213,7 @@ public partial class GameRoot : Node
         GD.Print("Ain Soph — ready");
 
         // 10. Scene layer — load WorldScene and wire all systems
+        GD.Print("GameRoot: loading WorldScene...");
         var sceneRes = GD.Load<PackedScene>("res://scenes/world/WorldScene.tscn");
         if (sceneRes != null)
         {
@@ -259,6 +265,13 @@ public partial class GameRoot : Node
         else
         {
             GD.PrintErr("GameRoot: could not load WorldScene.tscn");
+        }
+
+        }
+        catch (Exception ex)
+        {
+            GD.PrintErr($"GameRoot: BOOT FAILED — {ex.GetType().Name}: {ex.Message}");
+            GD.PrintErr(ex.StackTrace ?? "");
         }
     }
 
