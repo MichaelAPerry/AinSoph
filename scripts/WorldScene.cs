@@ -363,6 +363,31 @@ namespace AinSoph
                 tile.Y < 0 ? (tile.Y - 7) / 8 : tile.Y / 8
             );
 
+        private bool WasOnCaveTile()
+        {
+            if (Grid == null) return false;
+            var cell = Grid.GetIfLoaded(_playerTile.X / 8, _playerTile.Y / 8);
+            var tile = cell?.GetTile(_playerTile.X % 8, _playerTile.Y % 8);
+            return tile?.HasCave == true;
+        }
+
+        private void OnSleepRequested()
+        {
+            if (Player == null) return;
+            var now = System.DateTime.UtcNow;
+            if (Player.Survival.IsSleeping)
+            {
+                Player.Survival.EndSleep(now);
+                ShowWorldText("You awaken.");
+            }
+            else
+            {
+                bool inCave = WasOnCaveTile() && Player.Survival.IsInCave;
+                Player.Survival.BeginSleep(now, inCave);
+                ShowWorldText(inCave ? "You sleep in the shelter of the cave." : "You sleep under the open sky.");
+            }
+        }
+
         // ── Signals ───────────────────────────────────────────────────────
         [Signal] public delegate void PrimitiveUsedEventHandler(string targetId, int skillType);
         [Signal] public delegate void AltarPetitionEventHandler(string petition);

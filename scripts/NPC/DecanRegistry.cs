@@ -15,7 +15,7 @@ public static class DecanRegistry
 
     public static void Load(string jsonPath)
     {
-        var json = FileAccess.GetFileAsString(jsonPath);
+        var json = Godot.FileAccess.GetFileAsString(jsonPath);
         if (string.IsNullOrEmpty(json))
         {
             GD.PrintErr($"DecanRegistry: could not read {jsonPath}");

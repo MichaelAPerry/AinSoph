@@ -156,7 +156,7 @@ public class NpcBrain
             if (decision.ParsedState == NpcState.Creating || decision.ParsedState == NpcState.Praying)
             {
                 GD.Print($"NpcBrain [{NpcId}]: foreigner attempted {decision.ParsedState} — overridden to Idle");
-                decision.ParsedState = NpcState.Idle;
+                decision.State = "idle";
                 decision.CreationType = string.Empty;
                 decision.CreationIntent = string.Empty;
             }

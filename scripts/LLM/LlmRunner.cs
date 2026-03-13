@@ -27,7 +27,7 @@ public class LlmRunner : IDisposable
     /// </summary>
     public void Initialize(string modelPath, uint contextSize = 2048)
     {
-        if (!FileAccess.FileExists(modelPath))
+        if (!Godot.FileAccess.FileExists(modelPath))
         {
             GD.PrintErr($"LlmRunner: model file not found at {modelPath}");
             return;
@@ -37,7 +37,6 @@ public class LlmRunner : IDisposable
         {
             ContextSize = contextSize,
             GpuLayerCount = 0,   // CPU-only
-            Seed = 0
         };
 
         _weights = LLamaWeights.LoadFromFile(_params);

@@ -434,7 +434,7 @@ public partial class GameRoot : Node
         }
     }
 
-    private void OnNpcDeath(NpcBrain npc)
+    private static void OnNpcDeath(NpcBrain npc)
     {
         LiveNpcs.Remove(npc);
         NpcQueue?.Remove(npc.NpcId);
@@ -778,7 +778,13 @@ public partial class GameRoot : Node
         }
     }
 
-    // ── WorldScene reference ──────────────────────────────────────────────    private static WorldScene? _worldScene;
+    // ── WorldScene reference ──────────────────────────────────────────────
+    private static WorldScene? _worldScene;
+
+    private static void ConsumeItemFromTile(string itemId, int tileX, int tileY)
+    {
+        Items?.Remove(itemId);
+    }
 
     private async void OnPrimitiveUsed(string targetId, int skillType)
     {
