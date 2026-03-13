@@ -22,20 +22,44 @@ public static class DecanRegistry
             return;
         }
 
-        var seeds = JsonSerializer.Deserialize<List<DecanSeed>>(json,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-        if (seeds is null)
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(json); }
+        catch (JsonException ex)
         {
-            GD.PrintErr("DecanRegistry: failed to parse ain_soph_72.json");
+            GD.PrintErr($"DecanRegistry: JSON parse error — {ex.Message}");
+            return;
+        }
+
+        JsonElement root = doc.RootElement;
+
+        // The file has a wrapper: { "personalities": [ ... ] }
+        if (!root.TryGetProperty("personalities", out JsonElement arr) ||
+            arr.ValueKind != JsonValueKind.Array)
+        {
+            GD.PrintErr("DecanRegistry: missing 'personalities' array");
             return;
         }
 
         _all.Clear();
         _byId.Clear();
 
-        foreach (var seed in seeds)
+        foreach (JsonElement entry in arr)
         {
+            var seed = new DecanSeed
+            {
+                Id                = entry.GetStringProp("id"),
+                Name              = entry.GetStringProp("name"),
+                Description       = entry.GetStringProp("decan"),
+                Drive             = entry.JoinArray("drives"),
+                Avoidance         = entry.JoinArray("avoids"),
+                ConversationalStyle = entry.GetStringProp("in_conversation"),
+                StressResponse    = entry.GetStringProp("under_stress"),
+                EconomicBehavior  = entry.GetStringProp("economic_behavior"),
+                PoliticalTendency = entry.GetStringProp("political_tendency"),
+                TrustDynamic      = entry.GetStringProp("trust_threshold"),
+                BetrayalResponse  = entry.GetStringProp("betrayal_response"),
+            };
+
             _all.Add(seed);
             _byId[seed.Id] = seed;
         }
@@ -56,4 +80,22 @@ public static class DecanRegistry
     }
 
     public static IReadOnlyList<DecanSeed> All => _all;
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    private static string GetStringProp(this JsonElement el, string name) =>
+        el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString() ?? string.Empty
+            : string.Empty;
+
+    private static string JoinArray(this JsonElement el, string name)
+    {
+        if (!el.TryGetProperty(name, out var v) || v.ValueKind != JsonValueKind.Array)
+            return string.Empty;
+        var items = new List<string>();
+        foreach (var item in v.EnumerateArray())
+            if (item.ValueKind == JsonValueKind.String)
+                items.Add(item.GetString() ?? "");
+        return string.Join(", ", items);
+    }
 }
