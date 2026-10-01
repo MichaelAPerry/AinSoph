@@ -148,7 +148,7 @@ def build_edl():
     shot(30.4, 1.6, src("hunger", 0.1), 1.05, 1.1, game_audio=0.6)
     text(30.5, 32.0, "You must eat within the hour.", 46, y=0.78, colour=CREAM,
          family="CormorantGaramond", weight="SemiBold")
-    shot(32.0, 2.6, src("attack", -2.0), 1.0, 1.15, game_audio=0.8)
+    shot(32.0, 2.6, src("attack", -2.0), 1.05, 1.45, game_audio=0.8)
     FLASH.append(34.6)
     BLACK.append((34.6, 37.0))
     text(34.7, 36.9, "Miriam was killed by a lion.", 60, colour=CREAM,
@@ -365,7 +365,7 @@ def render(audio_path):
     enc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
          "-r", str(FPS), "-i", "-", "-i", audio_path, "-c:v", "libx264", "-preset", "slow",
-         "-crf", "19", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+         "-crf", "22", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
          "-movflags", "+faststart", "-shortest", OUT], stdin=subprocess.PIPE)
 
     total = int(LENGTH * FPS)

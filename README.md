@@ -6,9 +6,9 @@ Ain Soph is a free, open source, persistent, shared world game. It runs on low-s
 
 Nothing phones home. No subscription. No server you don't control.
 
-![Ain Soph demo tour](docs/demo/tour.gif)
+[![Ain Soph trailer](docs/demo/trailer-poster.jpg)](docs/demo/trailer.mp4)
 
-*Scripted demo tour — [video](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
+*[Watch the trailer](docs/demo/trailer.mp4) (68 s, narrated) · [scripted demo tour](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
 > **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 28-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
@@ -307,6 +307,7 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--model=<path>` | Use any `.gguf` file instead of the bundled model (handy for testing with a small model). |
 | `--demo-tour` | Plays a hands-free walkthrough with captions, then quits. Uses a throwaway world, never your save. Scripted voices unless `--model=` is also given. |
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
+| `--trailer` | Plays the staged, captionless run the trailer is cut from, at 1080p, and prints `TRAILER-MARK` lines. Uses a throwaway world. |
 | `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
 | `--selftest` | Runs 28 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
 
@@ -337,6 +338,16 @@ GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-demo.sh
 
 Needs ffmpeg; runs under `xvfb-run` on a headless machine. Add `--model=/path/to/model.gguf` to record with the real LLM.
 
+### The trailer
+
+[`docs/demo/trailer.mp4`](docs/demo/trailer.mp4) is cut from in-engine footage. Some beats are staged: night is forced, the lion is placed beside you and its kill is certain, and the Council is asked again until it grants something. What the NPC and the Council say is real output from the bundled model, quoted from that run. Rebuild it with:
+
+```
+FONTS=/path/to/fonts GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-trailer.sh
+```
+
+The narration is spoken by [Piper](https://github.com/rhasspy/piper) with the `en_GB-cori-high` voice (trained on public-domain LibriVox recordings); the score and sound design are synthesised by `tools/trailer/score.py`; the type is Cinzel and Cormorant Garamond (SIL Open Font License, used only in the video).
+
 ---
 
 ## Code Map
@@ -355,11 +366,13 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/LLM/ContentFilter.cs` | Prompt rule + word-list filter (`data/blocklist.txt`) on everything the AI says |
 | `scripts/Audio/Sound.cs` | Music, ambience and effects on their own buses (`assets/audio/`, made by `tools/make-sounds.py`) |
 | `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
+| `scripts/Demo/TrailerDirector.cs` | The staged `--trailer` run the trailer is cut from |
 | `scripts/Demo/SelfTest.cs` | `--selftest`: 28 automated checks of the whole loop, exit code 0/1 |
 | `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
 | `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
 | `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
+| `tools/record-trailer.sh` | Records and cuts the trailer (`tools/trailer/`: narration, score, edit) |
 | `tools/build-steam.sh` | Steam-ready Windows and Linux folders in `build/steam/` |
 | `tools/package-windows.sh` | Windows installer `build/AinSoph-Setup-<version>.exe` (NSIS script in `tools/installer/`) |
 | `.github/workflows/` | CI (build + self-test on every push) and Release (installer + Linux build on a `v*` tag) |
