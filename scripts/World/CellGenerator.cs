@@ -8,7 +8,7 @@ namespace AinSoph.World;
 /// </summary>
 public class CellGenerator
 {
-    private readonly Random _rng;
+    private readonly int _worldSeed;
 
     // Biome noise weights — wilderness is the default, most of the world
     private static readonly (BiomeType Biome, float Weight)[] BiomeWeights =
@@ -25,7 +25,7 @@ public class CellGenerator
 
     public CellGenerator(int worldSeed = 0)
     {
-        _rng = worldSeed == 0 ? new Random() : new Random(worldSeed);
+        _worldSeed = worldSeed == 0 ? new Random().Next() : worldSeed;
     }
 
     /// <summary>
@@ -34,8 +34,9 @@ public class CellGenerator
     /// </summary>
     public WorldCell Generate(int gridX, int gridY)
     {
-        // Seed per-cell rng from world seed + coords for determinism
-        var cellRng = new Random(HashCoords(gridX, gridY, _rng.Next()));
+        // Seed per-cell rng from world seed + coords only, so a cell is identical
+        // no matter when or in what order it is generated
+        var cellRng = new Random(HashCoords(gridX, gridY, _worldSeed));
 
         var biome = SelectBiome(cellRng);
         var profile = BiomeData.Get(biome);
@@ -203,8 +204,18 @@ public class CellGenerator
         return BiomeType.Wilderness;
     }
 
-    private static int HashCoords(int x, int y, int seed) =>
-        HashCode.Combine(x, y, seed);
+    // Stable across runs — HashCode.Combine is randomized per process
+    private static int HashCoords(int x, int y, int seed)
+    {
+        unchecked
+        {
+            uint h = (uint)seed * 0x9E3779B1u;
+            h ^= (uint)x * 0x85EBCA77u; h = (h << 13) | (h >> 19);
+            h ^= (uint)y * 0xC2B2AE3Du; h = (h << 17) | (h >> 15);
+            h *= 0x27D4EB2Fu; h ^= h >> 16;
+            return (int)(h & 0x7fffffff);
+        }
+    }
 }
 
 public class AnimalPlacement

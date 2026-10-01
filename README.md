@@ -6,6 +6,10 @@ Ain Soph is a free, open source, persistent, shared world game. It runs on low-s
 
 Nothing phones home. No subscription. No server you don't control.
 
+![Ain Soph demo tour](docs/demo/tour.gif)
+
+*Scripted demo tour — [video](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
+
 ---
 
 ## What It Is
@@ -267,6 +271,40 @@ This file is in `.gitignore`. Do not commit it.
 3. Press **Play**
 
 The model file will be found in `models/` during development. In production builds it is extracted from the PCK on first launch.
+
+No model? The game still runs — see **Demo mode** below.
+
+### Command-line options
+
+Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Project → Project Settings → Editor → Run → Main Run Args**.
+
+| Option | Effect |
+|--------|--------|
+| `--demo` | Scripted NPC and Council voices, no model needed. A few NPCs are placed near you and think every few seconds. |
+| `--model=<path>` | Use any `.gguf` file instead of the bundled model (handy for testing with a small model). |
+| `--demo-tour` | Plays a hands-free walkthrough with captions, then quits. Uses a throwaway world, never your save. Scripted voices unless `--model=` is also given. |
+| `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
+
+If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
+
+---
+
+## Demos
+
+Everything in [`docs/demo/`](docs/demo/) is produced by the scripted tour:
+
+| | |
+|---|---|
+| ![World](docs/demo/03-npcs.png) | ![Primitives](docs/demo/04-primitives.png) |
+| ![Dialogue](docs/demo/05-dialogue.png) | ![Council](docs/demo/08-council.png) |
+
+Re-record it (video, GIF and screenshots) with:
+
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-demo.sh
+```
+
+Needs ffmpeg; runs under `xvfb-run` on a headless machine. Add `--model=/path/to/model.gguf` to record with the real LLM.
 
 ---
 

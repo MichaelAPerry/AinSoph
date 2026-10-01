@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 using System.Threading.Tasks;
 using FileAccess = Godot.FileAccess;
 
@@ -28,7 +29,8 @@ namespace AinSoph.UI
         private bool   _started = false;
 
         // Called by GameRoot before any other boot step.
-        // Returns the real filesystem path once extraction is complete.
+        // Returns the real filesystem path once extraction is complete,
+        // or an empty string for demo mode (no model).
         public delegate void ReadyCallback(string realPath);
         public event ReadyCallback? OnReady;
 
@@ -73,7 +75,7 @@ namespace AinSoph.UI
             _statusLabel.AddThemeFontSizeOverride("font_size", 13);
             _statusLabel.AddThemeColorOverride("font_color", new Color(0.5f, 0.48f, 0.42f));
             _statusLabel.Position = new Vector2(0, vp.Y * 0.50f);
-            _statusLabel.Size     = new Vector2(vp.X, 24);
+            _statusLabel.Size     = new Vector2(vp.X, 48);
             AddChild(_statusLabel);
 
             _bar = new ProgressBar();
@@ -91,6 +93,29 @@ namespace AinSoph.UI
 
         private async void CheckAndExtract()
         {
+            // --demo forces scripted NPCs/Council; --model=<path> points at any .gguf
+            var args = OS.GetCmdlineUserArgs().Concat(OS.GetCmdlineArgs()).ToArray();
+            bool tourWithoutModel = args.Contains("--demo-tour") && !args.Any(a => a.StartsWith("--model="));
+            if (args.Contains("--demo") || tourWithoutModel)
+            {
+                await StartDemo("Demo mode — scripted voices, no AI model.");
+                return;
+            }
+
+            var modelArg = args.FirstOrDefault(a => a.StartsWith("--model="));
+            if (modelArg != null)
+            {
+                var path = modelArg["--model=".Length..];
+                if (System.IO.File.Exists(path))
+                {
+                    _statusLabel.Text = "Loading model...";
+                    await ToSignal(GetTree().CreateTimer(0.3), SceneTreeTimer.SignalName.Timeout);
+                    Finish(path);
+                    return;
+                }
+                GD.PrintErr($"ModelBootScreen: --model path not found: {path}");
+            }
+
             var realPath = ProjectSettings.GlobalizePath(ExtractedPath);
 
             // Already extracted — proceed immediately
@@ -102,14 +127,13 @@ namespace AinSoph.UI
                 return;
             }
 
-            // Check the bundled file exists in the PCK
+            // No bundled model — still boot, with scripted voices instead of the LLM
             if (!FileAccess.FileExists(BundledPath))
             {
-                _statusLabel.Text =
-                    "Model file not found.\n" +
-                    "Place qwen2.5-3b.gguf in res://models/ and re-export.";
-                _statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.3f, 0.3f));
-                GD.PrintErr("ModelBootScreen: bundled model not found at " + BundledPath);
+                GD.Print("ModelBootScreen: bundled model not found at " + BundledPath + " — starting in demo mode");
+                await StartDemo(
+                    "No AI model found — starting in demo mode.\n" +
+                    "Place qwen2.5-3b.gguf in res://models/ for living NPCs.");
                 return;
             }
 
@@ -127,25 +151,37 @@ namespace AinSoph.UI
             Finish(realPath);
         }
 
+        private async Task StartDemo(string message)
+        {
+            _statusLabel.Text = message;
+            await ToSignal(GetTree().CreateTimer(1.5), SceneTreeTimer.SignalName.Timeout);
+            Finish(string.Empty);
+        }
+
         private void ExtractSync(string destPath)
         {
-            using var src  = FileAccess.Open(BundledPath, FileAccess.ModeFlags.Read);
-            using var dest = System.IO.File.OpenWrite(destPath);
-
-            long total   = (long)src.GetLength();
-            long written = 0;
-
-            while (written < total)
+            // Write to a temp file and rename at the end, so an interrupted
+            // extraction is never mistaken for a complete model next launch
+            var partPath = destPath + ".part";
+            using (var src  = FileAccess.Open(BundledPath, FileAccess.ModeFlags.Read))
+            using (var dest = System.IO.File.Create(partPath))
             {
-                int chunk  = (int)System.Math.Min(ChunkSize, total - written);
-                var buffer = src.GetBuffer(chunk);
-                dest.Write(buffer, 0, buffer.Length);
-                written += buffer.Length;
+                long total   = (long)src.GetLength();
+                long written = 0;
 
-                float pct = (float)written / total * 100f;
-                CallDeferred(MethodName.UpdateProgress, pct,
-                    $"Extracting... {written / (1024 * 1024)} MB / {total / (1024 * 1024)} MB");
+                while (written < total)
+                {
+                    int chunk  = (int)System.Math.Min(ChunkSize, total - written);
+                    var buffer = src.GetBuffer(chunk);
+                    dest.Write(buffer, 0, buffer.Length);
+                    written += buffer.Length;
+
+                    float pct = (float)written / total * 100f;
+                    CallDeferred(MethodName.UpdateProgress, pct,
+                        $"Extracting... {written / (1024 * 1024)} MB / {total / (1024 * 1024)} MB");
+                }
             }
+            System.IO.File.Move(partPath, destPath, overwrite: true);
         }
 
         private void UpdateProgress(float pct, string status)

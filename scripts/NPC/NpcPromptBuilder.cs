@@ -194,7 +194,7 @@ public static class NpcPromptBuilder
             foreach (var item in situation.VisibleItems)
             {
                 var edible = item.Edible ? " (edible)" : string.Empty;
-                sb.AppendLine($"  {item.Name}{edible} — cell {item.CellId}");
+                sb.AppendLine($"  {item.Name}{edible} [id {item.Id}] — cell {item.CellId}");
             }
         }
 

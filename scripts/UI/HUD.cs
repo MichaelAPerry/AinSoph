@@ -47,12 +47,12 @@ namespace AinSoph.UI
         // Skill icon tile indices from TileRegistry
         private static readonly Dictionary<SkillType, int> SkillIcons = new()
         {
-            [SkillType.Move]  = 3,
-            [SkillType.See]   = 20,
-            [SkillType.Hear]  = 107,
-            [SkillType.Talk]  = 95,
-            [SkillType.Reap]  = 92,
-            [SkillType.Pray]  = 94,
+            [SkillType.Move]  = TileRegistry.SkillIcon(SkillType.Move),
+            [SkillType.See]   = TileRegistry.SkillIcon(SkillType.See),
+            [SkillType.Hear]  = TileRegistry.SkillIcon(SkillType.Hear),
+            [SkillType.Talk]  = TileRegistry.SkillIcon(SkillType.Talk),
+            [SkillType.Reap]  = TileRegistry.SkillIcon(SkillType.Reap),
+            [SkillType.Pray]  = TileRegistry.SkillIcon(SkillType.Pray),
         };
 
         public override void _Ready()
@@ -218,6 +218,7 @@ namespace AinSoph.UI
                 icon.StretchMode        = TextureRect.StretchModeEnum.KeepAspectCentered;
                 icon.CustomMinimumSize  = new Vector2(24, 24);
                 icon.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+                icon.Material           = TileRegistry.CutoutMaterial;
                 vbox.AddChild(icon);
             }
 

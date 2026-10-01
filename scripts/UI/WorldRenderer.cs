@@ -24,12 +24,15 @@ namespace AinSoph.UI
         public WorldGrid  Grid        { get; set; }
         public WorldClock Clock       { get; set; }
         public string     AltarCellId { get; set; } // e.g. "3,-2"
+        public Vector2I   AltarTile   { get; set; } // tile within the altar cell (0–7)
+        public WorldItemRegistry? Items { get; set; }
 
         // Camera follows the player
         private Camera2D _camera;
 
-        // Tile pool: keyed by grid position string for fast lookup
-        private readonly Dictionary<Vector2I, Sprite2D> _pool = new();
+        // Tile pools: ground glyph + landmark/item overlay, keyed by world tile
+        private readonly Dictionary<Vector2I, Sprite2D> _pool    = new();
+        private readonly Dictionary<Vector2I, Sprite2D> _overlay = new();
         private readonly Dictionary<int, Texture2D>     _texCache = new();
 
         public override void _Ready()
@@ -51,8 +54,22 @@ namespace AinSoph.UI
             foreach (var f in fogMap)
                 fogLookup[$"{f.GridX},{f.GridY}"] = f.Visibility;
 
+            // Items by tile, for the overlay pass
+            var itemTiles = new Dictionary<Vector2I, int>();
+            if (Items != null)
+            {
+                foreach (var item in Items.All)
+                {
+                    var pos  = new Vector2I(item.TileX, item.TileY);
+                    var tile = item.Type == "body" ? TileRegistry.BodyTile : TileRegistry.MannaTile;
+                    if (!itemTiles.ContainsKey(pos) || tile == TileRegistry.BodyTile)
+                        itemTiles[pos] = tile;
+                }
+            }
+
             // Mark all pooled sprites as unused
-            foreach (var s in _pool.Values) s.Visible = false;
+            foreach (var s in _pool.Values)    s.Visible = false;
+            foreach (var s in _overlay.Values) s.Visible = false;
 
             // Render cells in view
             for (int cx = playerCell.X - ViewRadius; cx <= playerCell.X + ViewRadius; cx++)
@@ -65,20 +82,22 @@ namespace AinSoph.UI
                                : FogOfWar.TileVisibility.Fog;
 
                     bool isAltar = AltarCellId == cell.CellId;
-                    DrawCell(cell, vis, isAltar);
+                    DrawCell(cell, vis, isAltar, itemTiles);
                 }
             }
 
             // Move camera to player world position
             if (_camera != null)
-                _camera.GlobalPosition = TileToWorld(playerTile);
+                _camera.GlobalPosition = TileToWorld(playerTile) + new Vector2(TileSize / 2f, TileSize / 2f);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
 
-        private void DrawCell(WorldCell cell, FogOfWar.TileVisibility vis, bool isAltar)
+        private void DrawCell(WorldCell cell, FogOfWar.TileVisibility vis, bool isAltar,
+                              Dictionary<Vector2I, int> itemTiles)
         {
-            int[] groundTiles = TileRegistry.GroundTilesFor(cell.Biome);
+            var material = TileRegistry.GroundMaterialFor(cell.Biome);
+            var modulate = FogModulate(vis);
 
             for (int tx = 0; tx < CellTiles; tx++)
             {
@@ -88,25 +107,33 @@ namespace AinSoph.UI
                         cell.GridX * CellTiles + tx,
                         cell.GridY * CellTiles + ty
                     );
+                    var tile = cell.GetTile(tx, ty);
 
-                    // Pick tile variant deterministically
-                    int variant  = Math.Abs(tilePos.X * 31 + tilePos.Y * 17) % groundTiles.Length;
-                    int tileIdx  = groundTiles[variant];
-
-                    // Cave tile override (centre of cell)
-                    if (cell.HasCave && tx == 3 && ty == 3)
-                        tileIdx = TileRegistry.CaveTile;
-
-                    // Altar tile override
-                    if (isAltar && tx == 4 && ty == 4)
-                        tileIdx = TileRegistry.AltarTile;
-
-                    var sprite = GetOrCreateTile(tilePos);
-                    sprite.Texture  = LoadTile(tileIdx);
-                    sprite.Position = TileToWorld(tilePos);
-                    sprite.Scale    = Vector2.One * (TileSize / 8f); // source tiles are 8px
-                    sprite.Modulate = FogModulate(vis);
+                    // Ground: the tile's surface glyph on the biome's ground colour
+                    int variant = Math.Abs(tilePos.X * 31 + tilePos.Y * 17);
+                    var sprite  = GetOrCreate(_pool, tilePos, z: 0);
+                    sprite.Texture  = LoadTile(TileRegistry.SurfaceTile(tile.Surface, variant));
+                    sprite.Material = material;
+                    sprite.Modulate = modulate;
                     sprite.Visible  = true;
+
+                    // Overlay: altar > cave > items. Hidden under full fog.
+                    int overlay = -1;
+                    if (isAltar && tx == AltarTile.X && ty == AltarTile.Y)
+                        overlay = TileRegistry.AltarTile;
+                    else if (tile.HasCave)
+                        overlay = TileRegistry.CaveTile;
+                    else if (vis != FogOfWar.TileVisibility.Fog && itemTiles.TryGetValue(tilePos, out var it))
+                        overlay = it;
+
+                    if (overlay >= 0)
+                    {
+                        var o = GetOrCreate(_overlay, tilePos, z: 1);
+                        o.Texture  = LoadTile(overlay);
+                        o.Material = material;
+                        o.Modulate = modulate;
+                        o.Visible  = true;
+                    }
                 }
             }
         }
@@ -118,15 +145,18 @@ namespace AinSoph.UI
             _                             => TileRegistry.FogColor,
         };
 
-        private Sprite2D GetOrCreateTile(Vector2I tilePos)
+        private Sprite2D GetOrCreate(Dictionary<Vector2I, Sprite2D> pool, Vector2I tilePos, int z)
         {
-            if (_pool.TryGetValue(tilePos, out var existing))
+            if (pool.TryGetValue(tilePos, out var existing))
                 return existing;
 
             var sprite = new Sprite2D();
             sprite.Centered = false;
+            sprite.Position = TileToWorld(tilePos);
+            sprite.Scale    = Vector2.One * (TileSize / 8f); // source tiles are 8px
+            sprite.ZIndex   = z;
             AddChild(sprite);
-            _pool[tilePos] = sprite;
+            pool[tilePos] = sprite;
             return sprite;
         }
 

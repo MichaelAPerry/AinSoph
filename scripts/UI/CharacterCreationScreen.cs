@@ -95,6 +95,13 @@ namespace AinSoph.UI
             Visible     = true;
         }
 
+        /// <summary>Fill in and confirm a name without the keyboard (demo tour).</summary>
+        public void SubmitName(string name)
+        {
+            _nameField.Text = name;
+            Confirm();
+        }
+
         // ── Internal ──────────────────────────────────────────────────────
 
         private void Confirm()

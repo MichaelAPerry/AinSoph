@@ -61,6 +61,10 @@ The model (1.9 GB) is stored inside the PCK. On first run, Ain Soph extracts it 
 
 This extraction takes 15–30 seconds and is shown on screen. It only happens once. Subsequent launches boot directly.
 
+Extraction writes to a `.part` file and renames it when complete, so an interrupted first launch simply extracts again next time.
+
+If the export has no model in it, the game boots in demo mode (scripted NPC and Council voices) rather than stopping at the boot screen.
+
 ---
 
 ## Distribution

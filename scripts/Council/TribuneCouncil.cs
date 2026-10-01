@@ -54,9 +54,13 @@ public class TribuneCouncil
 
         var verdict = new CouncilVerdict { Submission = submission };
 
+        // Framed as a petition — sent as bare JSON, small models echo it back instead of voting
+        var petition = $"A petition comes before the Council:\n{submissionJson}\n\n" +
+                       "Give your verdict now, as the JSON object described.";
+
         foreach (var prompt in SeatPrompts)
         {
-            var raw = await _llm.InferAsync(prompt, submissionJson, maxTokens: 256,
+            var raw = await _llm.InferAsync(prompt, petition, maxTokens: 256,
                 cancellationToken: cancellationToken);
 
             var response = ParseSeatResponse(raw);
@@ -75,20 +79,22 @@ public class TribuneCouncil
 
     private static SeatResponse? ParseSeatResponse(string raw)
     {
-        // Strip markdown fences if the model wrapped its output
-        var cleaned = raw.Trim();
-        if (cleaned.StartsWith("```")) cleaned = cleaned.Split('\n', 2)[1];
-        if (cleaned.EndsWith("```")) cleaned = cleaned[..^3];
-
-        try
+        // Take the first object that actually carries a vote — small models
+        // sometimes echo the submission JSON before answering
+        foreach (var json in LlmRunner.ExtractJsonObjects(raw))
         {
-            return JsonSerializer.Deserialize<SeatResponse>(cleaned.Trim(),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            try
+            {
+                var r = JsonSerializer.Deserialize<SeatResponse>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (r is not null && !string.IsNullOrWhiteSpace(r.Vote))
+                    return r;
+            }
+            catch (JsonException ex)
+            {
+                GD.PrintErr($"TribuneCouncil: JSON parse error: {ex.Message}");
+            }
         }
-        catch (JsonException ex)
-        {
-            GD.PrintErr($"TribuneCouncil: JSON parse error: {ex.Message}");
-            return null;
-        }
+        return null;
     }
 }

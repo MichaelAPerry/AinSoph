@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AinSoph.LLM;
 using AinSoph.World;
 using Godot;
@@ -50,11 +51,34 @@ public class NpcBrain
     public string CellId() => _cellId;
     public void SetCellId(string cellId) => _cellId = cellId;
 
+    // Global tile position (cell * 8 + local). Kept in step with CellId by SetTile.
+    public int TileX { get; private set; }
+    public int TileY { get; private set; }
+
+    public void SetTile(int tileX, int tileY)
+    {
+        TileX = tileX;
+        TileY = tileY;
+        int cx = tileX < 0 ? (tileX - 7) / 8 : tileX / 8;
+        int cy = tileY < 0 ? (tileY - 7) / 8 : tileY / 8;
+        _cellId = $"{cx},{cy}";
+    }
+
+    public int KillNumber => BaseKillNumbers.NpcBase + Decan.KillModifier;
+
+    /// <summary>Killed by another being (Reap). The body is placed by whoever handles OnDeath.</summary>
+    public void Kill()
+    {
+        State = NpcState.Idle;
+        OnDeath?.Invoke(this);
+    }
+
     private readonly LlmRunner _llm;
     private DateTime _lastThinkUtc;
     private DateTime _sleepStartUtc;
 
-    private static readonly TimeSpan ThinkInterval = TimeSpan.FromHours(1);
+    /// <summary>How often an NPC thinks. One hour in the real game; shortened in demo mode.</summary>
+    public static TimeSpan ThinkInterval { get; set; } = TimeSpan.FromHours(1);
 
     private static readonly JsonSerializerOptions _jsonOpts = new()
     {
@@ -73,7 +97,7 @@ public class NpcBrain
         Decan    = decan;
         _llm     = llm;
         Survival = new SurvivalTracker(nowUtc);
-        _lastThinkUtc = nowUtc;
+        _lastThinkUtc = DateTime.MinValue; // think on the first tick after load
     }
 
     // -------------------------------------------------------------------------
@@ -188,15 +212,20 @@ public class NpcBrain
                 if (!string.IsNullOrEmpty(decision.EatItemId))
                     Survival.RecordEat(now);
                 break;
+
+            case NpcState.Creating:
+                _pendingCreationIntent = decision.CreationIntent;
+                break;
         }
 
         // Write memory if the NPC decided to update it
+        // (models often send "" for "no change" — never let that wipe a slot)
         if (decision.MemoryUpdates is { } mu)
         {
-            if (mu.Will    is not null) Memory.Write(MemorySlot.Will,    mu.Will);
-            if (mu.Thought is not null) Memory.Write(MemorySlot.Thought, mu.Thought);
-            if (mu.Feeling is not null) Memory.Write(MemorySlot.Feeling, mu.Feeling);
-            if (mu.Action  is not null) Memory.Write(MemorySlot.Action,  mu.Action);
+            if (!string.IsNullOrWhiteSpace(mu.Will))    Memory.Write(MemorySlot.Will,    mu.Will);
+            if (!string.IsNullOrWhiteSpace(mu.Thought)) Memory.Write(MemorySlot.Thought, mu.Thought);
+            if (!string.IsNullOrWhiteSpace(mu.Feeling)) Memory.Write(MemorySlot.Feeling, mu.Feeling);
+            if (!string.IsNullOrWhiteSpace(mu.Action))  Memory.Write(MemorySlot.Action,  mu.Action);
         }
     }
 
@@ -227,8 +256,13 @@ public class NpcBrain
             $"Someone speaks to you: \"{playerMessage}\"\n\n" +
             $"Respond in character. Speak as yourself. Return plain text — no JSON.";
 
-        return await _llm.InferAsync(systemPrompt, fullUserMessage,
+        var reply = await _llm.InferAsync(systemPrompt, fullUserMessage,
             maxTokens: 256, cancellationToken: ct);
+
+        // The system prompt trains the NPC to answer in JSON; if it does, take what it said aloud
+        if (reply.TrimStart().StartsWith("{") && ParseDecision(reply) is { } d)
+            return string.IsNullOrWhiteSpace(d.Speech) ? "…" : d.Speech;
+        return reply;
     }
 
     private string _pendingCreationIntent = string.Empty;
@@ -239,20 +273,22 @@ public class NpcBrain
 
     private static NpcDecision? ParseDecision(string raw)
     {
-        var cleaned = raw.Trim();
-        if (cleaned.StartsWith("```")) cleaned = cleaned.Split('\n', 2)[1];
-        if (cleaned.EndsWith("```"))   cleaned = cleaned[..^3];
-
         try
         {
-            var d = JsonSerializer.Deserialize<NpcDecision>(cleaned.Trim(), _jsonOpts);
-            if (d is not null && d.ParsedState == NpcState.Creating)
-                return d;
-            return d;
+            return JsonSerializer.Deserialize<NpcDecision>(LlmRunner.ExtractJson(raw), _jsonOpts);
         }
         catch (JsonException)
         {
-            return null;
+            // Truncated reply (ran out of tokens mid-JSON) — salvage the state and what was said
+            var state = Regex.Match(raw, "\"state\"\\s*:\\s*\"(\\w+)\"");
+            if (!state.Success) return null;
+            var speech = Regex.Match(raw, "\"speech\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)");
+            var said   = speech.Success ? speech.Groups[1].Value : string.Empty;
+            return new NpcDecision
+            {
+                State  = state.Groups[1].Value,
+                Speech = said.Length > 160 ? said[..160] + "…" : said,
+            };
         }
     }
 }
