@@ -35,6 +35,15 @@ namespace AinSoph.UI
         private readonly Dictionary<Vector2I, Sprite2D> _overlay = new();
         private readonly Dictionary<int, Texture2D>     _texCache = new();
 
+        private Dictionary<string, FogOfWar.TileVisibility> _fog = new();
+
+        /// <summary>Whether a tile can be seen from the last refresh (not under full fog).</summary>
+        public bool TileVisible(int tileX, int tileY)
+        {
+            var c = TileToCell(new Vector2I(tileX, tileY));
+            return _fog.TryGetValue($"{c.X},{c.Y}", out var v) && v != FogOfWar.TileVisibility.Fog;
+        }
+
         public override void _Ready()
         {
             _camera = GetNode<Camera2D>("../Camera2D");
@@ -53,6 +62,7 @@ namespace AinSoph.UI
             var fogLookup = new Dictionary<string, FogOfWar.TileVisibility>();
             foreach (var f in fogMap)
                 fogLookup[$"{f.GridX},{f.GridY}"] = f.Visibility;
+            _fog = fogLookup;
 
             // Items by tile, for the overlay pass
             var itemTiles = new Dictionary<Vector2I, int>();

@@ -153,6 +153,16 @@ namespace AinSoph.UI
 
         public void ShowName(bool show) => _nameLabel.Visible = show;
 
+        /// <summary>Use a specific glyph and tint for the body (animals by species).</summary>
+        public void SetBody(int tileIdx, Color tint)
+        {
+            _bodySprite.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(tileIdx));
+            _bodySprite.Scale    = Vector2.One * (TileSize / 8f);
+            _bodySprite.Modulate = tint;
+            _nameLabel.AddThemeColorOverride("font_color", new Color(0.75f, 0.75f, 0.68f));
+            _nameLabel.AddThemeFontSizeOverride("font_size", 9);
+        }
+
         // ── Body tile selection ───────────────────────────────────────────
 
         private void SetBodyTile(int seed, bool isAnimal)

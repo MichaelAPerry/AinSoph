@@ -284,7 +284,7 @@ No model? The game still runs in demo mode — see [Command-line options](#comma
 | Left-click an NPC | Open the six primitives on them |
 | Right-click a tile | Primitives on that tile, or on the item lying there (manna, bodies) |
 | Talk | Opens dialogue — type, then Enter or SEND; Esc or LEAVE to close |
-| Reap | Eat an edible item next to you, or attack a being next to you |
+| Reap | Eat an edible item next to you, or attack a being next to you (animals too — a clean animal's body is food) |
 | Pray | Only reaches the Council when you stand at the altar |
 | SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
 | RIB button | Appears once you have earned the rib — name and describe your spouse |
@@ -339,7 +339,7 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 |------|------------------|
 | `scripts/GameRoot.cs` | Boot sequence, save/load, NPC queue pump, player interactions (talk, reap, pray, eat), Council verdicts |
 | `scripts/WorldScene.cs` | The visible world: camera, player sprite, movement, input, NPC nodes |
-| `scripts/World/` | Grid of cells, deterministic cell generation, biomes, caves, altar, manna, survival clock, kill resolution |
+| `scripts/World/` | Grid of cells, deterministic cell generation, biomes, caves, altar, manna, animal species, survival clock, kill resolution |
 | `scripts/NPC/` | `NpcBrain` (think tick → LLM → decision), prompts, memory slots, the 72 decans, animals |
 | `scripts/Council/` | The Triune Council: three seats, three LLM calls, 2-of-3 vote |
 | `scripts/LLM/LlmRunner.cs` | llama.cpp via LLamaSharp — ChatML prompts for Qwen, one inference at a time, tolerant JSON parsing |
@@ -349,6 +349,8 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
 | `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
+| `tools/build-steam.sh` | Steam-ready Windows and Linux folders in `build/steam/` |
+| `tools/package-windows.sh` | Windows installer `build/AinSoph-Setup-<version>.exe` (NSIS script in `tools/installer/`) |
 
 Saves live in the Godot user data folder (`~/.local/share/godot/app_userdata/Ain Soph/saves/world` on Linux, `%APPDATA%\Godot\app_userdata\Ain Soph\saves\world` on Windows). Delete that folder to start a new world.
 
@@ -356,12 +358,11 @@ Saves live in the Godot user data folder (`~/.local/share/godot/app_userdata/Ain
 
 ## Project Status
 
-**Works now:** world generation (same world every launch for a given seed), fog of war, movement, caves, morning manna, eating, hunger/sleep death, NPCs that think, move, talk and show their state, dialogue, kill resolution, praying at the altar, Council voting with parables, skills/items granted on approval, the rib (play time saved across sessions, RIB button, naming the spouse), weekly progeny with lineage, saves, demo mode.
+**Works now:** world generation (same world every launch for a given seed), fog of war, movement, caves, morning manna, eating, animals (30 species from ITEMS.md — they wander, eat manna, predators hunt, prey flee, two replace each that dies), hunger/sleep death, NPCs that think, move, talk and show their state, dialogue, kill resolution, praying at the altar, Council voting with parables, skills/items granted on approval, the rib (play time saved across sessions, RIB button, naming the spouse), weekly progeny with lineage, saves, demo mode.
 
 **Designed but not wired up yet:**
 
 - **A new world starts empty.** By design NPCs come from players: the rib → spouse → progeny, and travellers over routes. Until a player has played a week, their world has no NPCs. Demo mode places five so the world can be seen alive.
-- **Animals.** Cell generation can place them, but nothing spawns them yet.
 - **NPC creations.** NPCs decide to create skills, items and rules, but don't yet take them to the Council.
 - **Rules.** Council-approved rules are recorded but not enforced.
 - **Routes** (moving NPCs between worlds) have a UI but haven't been tested end to end.
@@ -379,6 +380,12 @@ GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/build-steam.sh
 ```
 
 This produces `build/steam/windows/` and `build/steam/linux/`. Each is a folder (the executable, a `data_AinSoph_*` folder with the .NET and llama.cpp libraries, and `models/`), about 1.3 GB. The plain **Windows Desktop** / **Linux/X11** presets bundle the model inside the game package and extract it on first launch instead.
+
+For a Windows installer — one `AinSoph-Setup-0.1.0.exe` that installs the game, adds Start-menu and desktop shortcuts, and an uninstaller:
+
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/package-windows.sh
+```
 
 Full details in [BUILD.md](BUILD.md); the road to release in [STEAM.md](STEAM.md).
 

@@ -58,6 +58,16 @@ GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/build-steam.sh
 
 This writes `build/steam/windows/` and `build/steam/linux/` (about 1.3 GB each), each ready to upload as a depot.
 
+### Windows installer (.exe)
+
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/package-windows.sh
+```
+
+Builds the Steam Windows folder, then wraps it with NSIS (`apt install nsis`, or NSIS on Windows) into `build/AinSoph-Setup-<version>.exe` (~1.2 GB). The installer is 64-bit, installs per user (no administrator prompt) to `%LOCALAPPDATA%\Programs\Ain Soph`, adds Start-menu and desktop shortcuts, offers to launch the game, and registers an uninstaller in Add/Remove Programs. Uninstalling keeps saved worlds. `/S` installs silently.
+
+The exe's icon (`assets/icon.ico`) and version info come from the export preset, applied by `rcedit`: set **Editor Settings → Export → Windows → rcedit** to `rcedit-x64.exe` ([download](https://github.com/electron/rcedit/releases)), and on Linux also **wine** to your `wine64`. The version number comes from `config/version` in `project.godot`.
+
 **A C# export is a folder, not a single file.** Next to the executable is a `data_AinSoph_<platform>/` folder holding the .NET runtime, LLamaSharp and llama.cpp's native libraries (no-AVX, AVX2 and AVX-512 builds, so old CPUs work). Ship the whole folder.
 
 ---

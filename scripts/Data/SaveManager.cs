@@ -118,6 +118,15 @@ public class SaveManager
     // NPCs
     // -------------------------------------------------------------------------
 
+    public void SaveAnimals(AnimalsSaveData data) =>
+        WriteJson(Path.Combine(_saveDir, "animals.json"), data);
+
+    public AnimalsSaveData? LoadAnimals()
+    {
+        var path = Path.Combine(_saveDir, "animals.json");
+        return File.Exists(path) ? ReadJson<AnimalsSaveData>(path) : null; // none yet in a new world
+    }
+
     public void SaveNpc(NpcSaveData data) =>
         WriteJson(NpcPath(data.Id), data);
 

@@ -124,6 +124,16 @@ public class PlayerSaveData
 }
 
 /// <summary>
+/// Animals — one file (animals.json): every living animal, and which cells
+/// have already received their starting animals (so they are only placed once).
+/// </summary>
+public class AnimalsSaveData
+{
+    public List<AnimalSaveData> Animals        { get; set; } = new();
+    public List<string>         PopulatedCells { get; set; } = new();
+}
+
+/// <summary>
 /// World-level metadata.
 /// One file: world.json
 /// </summary>

@@ -152,6 +152,9 @@ public partial class GameRoot : Node
         Items = new WorldItemRegistry(Save);
         Items.LoadAll();
 
+        // 4b'. Animals — saved ones, plus starting animals for every new cell
+        LoadAnimals(DateTime.UtcNow);
+
         // 4c. Route manager
         Routes = new Data.RouteManager(Save, LiveNpcs);
 
@@ -281,6 +284,7 @@ public partial class GameRoot : Node
                 scene.UpsertNpc(ToSaveData(npc));
 
             _worldScene = scene;
+            ShowAllAnimals();
             scene.RibRequested += OnRibRequested;
             if (IsDemo) scene.ShowWorldText("Demo mode — the voices you hear are scripted.");
             if (tour)   AddChild(new Demo.DemoDirector());
@@ -334,6 +338,14 @@ public partial class GameRoot : Node
                 _worldScene.ShowWorldText("A week has passed in this world. Something stirs at your side — the rib is yours.");
         }
 
+        // Animals near the player wander
+        _animalWanderTimer -= delta;
+        if (_animalWanderTimer <= 0)
+        {
+            _animalWanderTimer = AnimalWanderSeconds;
+            WanderAnimals();
+        }
+
         // Keep the NPC queue moving — each NPC decides itself whether it is due to think
         _npcPumpTimer -= delta;
         if (_npcPumpTimer <= 0 && NpcQueue is not null && !NpcQueue.IsBusy)
@@ -359,9 +371,10 @@ public partial class GameRoot : Node
         // Decay items — age all living items by 1 hour
         Items?.TickDecay(1f);
 
-        // Advance animal survival
+        // Animals — instinct only: eat, sleep, predators hunt, prey flee
         foreach (var animal in LiveAnimals.ToList())
         {
+            if (!LiveAnimals.Contains(animal)) continue; // killed earlier this tick
             var situation = BuildAnimalSituation(animal);
             animal.Tick(situation, nowUtc);
         }
@@ -376,24 +389,31 @@ public partial class GameRoot : Node
             if (result.HungerWarning) _worldScene?.ShowWorldText("⚠ You must eat within the hour. ⚠");
             if (result.SleepWarning)  _worldScene?.ShowWorldText("⚠ You must sleep within the hour. ⚠");
             if (result.IsDead)
-            {
-                // Drop corpse — body persists in world
-                Items?.SpawnBody(Player.Name, Player.TileX, Player.TileY);
-
-                // Release any cave claim
-                ReleaseCave(Player.TileX, Player.TileY, Player.Id);
-
-                // Delete old player save
-                Save?.DeletePlayer();
-
-                GD.Print($"GameRoot: player '{Player.Name}' died");
-                Player = null;
-
-                // New character — show creation screen, spawn near a cave
-                _worldScene?.ShowWorldText("You have died. A new light descends.");
-                CallDeferred(MethodName.SpawnNewPlayer);
-            }
+                KillPlayer("hunger or exhaustion");
         }
+    }
+
+    /// <summary>The player dies: body stays, cave freed, save cleared, a new character descends.</summary>
+    private void KillPlayer(string cause)
+    {
+        if (Player == null) return;
+
+        // Drop corpse — body persists in world
+        Items?.SpawnBody(Player.Name, Player.TileX, Player.TileY);
+
+        // Release any cave claim
+        ReleaseCave(Player.TileX, Player.TileY, Player.Id);
+
+        // Delete old player save
+        Save?.DeletePlayer();
+
+        GD.Print($"GameRoot: player '{Player.Name}' died ({cause})");
+        Player = null;
+
+        // New character — show creation screen, spawn near a cave
+        _worldScene?.ShowWorldText("You have died. A new light descends.");
+        _worldScene?.RefreshMap();
+        CallDeferred(MethodName.SpawnNewPlayer);
     }
 
     private void SpawnNewPlayer()
@@ -522,41 +542,217 @@ public partial class GameRoot : Node
         GD.Print($"GameRoot: {npc.Name} died at {npc.CellId()} — body placed");
     }
 
-    private void OnAnimalDeath(AnimalBrain animal)
+    // ── Animals ───────────────────────────────────────────────────────────
+
+    // Animals placed in cells once per world; tracked so a regenerated cell
+    // doesn't get a second set
+    private readonly HashSet<string> _animalCells = new();
+
+    // Replacement (two for one) stops when a cell is this crowded, so deaths
+    // by starvation can't double the population without limit
+    private const int MaxAnimalsPerCell = 6;
+
+    private double _animalWanderTimer;
+    private const double AnimalWanderSeconds = 1.5;
+
+    private void LoadAnimals(DateTime nowUtc)
     {
-        LiveAnimals.Remove(animal);
-        Items?.SpawnBody(animal.Name, animal.TileX, animal.TileY);
-        SpawnAnimalPair(animal.AnimalType, animal.TileX, animal.TileY);
-        GD.Print($"GameRoot: {animal.Name} died at {animal.TileX},{animal.TileY} — 2 spawned");
+        var data = Save?.LoadAnimals();
+        if (data != null)
+        {
+            _animalCells.UnionWith(data.PopulatedCells);
+            foreach (var a in data.Animals)
+            {
+                var species = AnimalSpecies.Get(a.Name);
+                if (species != null) AddAnimal(species, a.TileX, a.TileY, nowUtc, a.Id);
+            }
+        }
+
+        // New cells get their starting animals as they are first generated
+        Grid!.CellGenerated += cell =>
+        {
+            if (!_animalCells.Add(cell.CellId)) return;
+            foreach (var p in Grid.PlaceAnimals(cell))
+            {
+                var species = AnimalSpecies.Get(p.Name);
+                if (species != null) AddAnimal(species, p.TileX, p.TileY, DateTime.UtcNow);
+            }
+        };
+
+        // Cells generated before the hook (the start area) still need theirs
+        foreach (var cell in Grid.LoadedCells.ToList())
+        {
+            if (!_animalCells.Add(cell.CellId)) continue;
+            foreach (var p in Grid.PlaceAnimals(cell))
+            {
+                var species = AnimalSpecies.Get(p.Name);
+                if (species != null) AddAnimal(species, p.TileX, p.TileY, nowUtc);
+            }
+        }
+
+        GD.Print($"GameRoot: {LiveAnimals.Count} animals loaded; new cells get their own as they are found");
     }
 
-    private void SpawnAnimalPair(AnimalType animalType, int originTileX, int originTileY)
+    private void SaveAnimals() => Save?.SaveAnimals(new Data.AnimalsSaveData
     {
-        var offsets = new (int dx, int dy)[]
-            { (1,0), (-1,0), (0,1), (0,-1), (1,1), (-1,1), (1,-1), (-1,-1) };
+        PopulatedCells = _animalCells.ToList(),
+        Animals = LiveAnimals.Select(a => new Data.AnimalSaveData
+        {
+            Id = a.AnimalId, Name = a.Name, AnimalType = a.AnimalType.ToString(),
+            TileX = a.TileX, TileY = a.TileY,
+        }).ToList(),
+    });
 
-        // Derive cell from tile coords
-        int cx = originTileX < 0 ? (originTileX - 7) / 8 : originTileX / 8;
-        int cy = originTileY < 0 ? (originTileY - 7) / 8 : originTileY / 8;
-        string cellId = $"{cx},{cy}";
+    private AnimalBrain AddAnimal(AnimalSpecies species, int tileX, int tileY, DateTime nowUtc, string? id = null)
+    {
+        var brain = new AnimalBrain(id ?? $"animal:{Guid.NewGuid():N}", species.Name, species.Type,
+                                    CellOf(tileX, tileY), tileX, tileY, nowUtc);
+        brain.OnDeath  += OnAnimalDeath;
+        brain.OnEat    += OnAnimalEat;
+        brain.OnAttack += OnAnimalAttack;
+        brain.OnFlee   += OnAnimalFlee;
+        LiveAnimals.Add(brain);
+        _worldScene?.UpsertAnimal(brain.AnimalId, species.Name, species.Glyph, species.Tint, tileX, tileY);
+        return brain;
+    }
+
+    /// <summary>Animals visible on the map — called once the scene exists.</summary>
+    private void ShowAllAnimals()
+    {
+        foreach (var a in LiveAnimals)
+            if (a.Species is { } sp)
+                _worldScene?.UpsertAnimal(a.AnimalId, sp.Name, sp.Glyph, sp.Tint, a.TileX, a.TileY);
+    }
+
+    private void OnAnimalDeath(AnimalBrain animal)
+    {
+        if (!LiveAnimals.Remove(animal)) return;
+        _worldScene?.RemoveNpc(animal.AnimalId);
+
+        // The body stays. A clean animal's body is food for a day.
+        var edible = animal.Species?.Edible == true;
+        Items?.Spawn(
+            name:          $"Body of {animal.Name}",
+            type:          "body",
+            tileX:         animal.TileX,
+            tileY:         animal.TileY,
+            edible:        edible,
+            lifespanHours: edible ? 24f : null,
+            description:   edible ? $"A {animal.Name}, dead. Clean meat." : $"A {animal.Name}, dead.");
+
+        SpawnAnimalPair(animal);
+        _worldScene?.RefreshMap();
+        GD.Print($"GameRoot: {animal.Name} died at {animal.TileX},{animal.TileY}");
+    }
+
+    /// <summary>When one animal dies, two of its kind appear beside where it fell (ITEMS.md).</summary>
+    private void SpawnAnimalPair(AnimalBrain dead)
+    {
+        var species = dead.Species;
+        if (species == null) return;
+
+        var cell = CellOf(dead.TileX, dead.TileY);
+        if (LiveAnimals.Count(a => a.CellId == cell) >= MaxAnimalsPerCell) return;
 
         int spawned = 0;
-        foreach (var (dx, dy) in offsets)
+        foreach (var (dx, dy) in new[] { (1,0), (-1,0), (0,1), (0,-1), (1,1), (-1,1), (1,-1), (-1,-1) })
         {
             if (spawned >= 2) break;
-            var brain = new AnimalBrain(
-                Guid.NewGuid().ToString("N")[..8],
-                animalType.ToString(),
-                animalType,
-                cellId,
-                originTileX + dx,
-                originTileY + dy,
-                DateTime.UtcNow
-            );
-            brain.OnDeath += OnAnimalDeath;
-            LiveAnimals.Add(brain);
+            int x = dead.TileX + dx, y = dead.TileY + dy;
+            if (!AnimalCanStand(species, x, y) || IsOccupied(x, y) || AnimalAt(x, y) != null) continue;
+            AddAnimal(species, x, y, DateTime.UtcNow);
             spawned++;
         }
+    }
+
+    private void OnAnimalEat(AnimalBrain animal, string itemId)
+    {
+        Items?.Remove(itemId); // manna is shared — what an animal eats, no one else can
+        _worldScene?.RefreshMap();
+    }
+
+    /// <summary>A predator attacks whoever is beside it — d100 against d100, ties to the defender.</summary>
+    private void OnAnimalAttack(AnimalBrain predator, string targetId)
+    {
+        if (Player != null && targetId == Player.Id)
+        {
+            var kill = KillResolver.Resolve(predator.KillNumber, Player.KillNumber);
+            _worldScene?.ShowNpcSpeech(predator.AnimalId, "!");
+            if (kill.AttackerSucceeds) KillPlayer($"killed by a {predator.Name}");
+            else _worldScene?.ShowWorldText($"A {predator.Name} attacks! You fight it off.");
+            return;
+        }
+
+        var npc = LiveNpcs.Find(n => n.NpcId == targetId);
+        if (npc != null)
+        {
+            if (KillResolver.Resolve(predator.KillNumber, npc.KillNumber).AttackerSucceeds) npc.Kill();
+            return;
+        }
+
+        var prey = LiveAnimals.Find(a => a.AnimalId == targetId);
+        if (prey != null && KillResolver.Resolve(predator.KillNumber, prey.KillNumber).AttackerSucceeds)
+            prey.Kill();
+    }
+
+    /// <summary>Prey bolts two tiles away from the nearest predator.</summary>
+    private void OnAnimalFlee(AnimalBrain prey)
+    {
+        var threat = LiveAnimals
+            .Where(a => a.AnimalType == AnimalType.Predator && a.AnimalId != prey.AnimalId)
+            .OrderBy(a => Math.Abs(a.TileX - prey.TileX) + Math.Abs(a.TileY - prey.TileY))
+            .FirstOrDefault();
+        if (threat == null || prey.Species is not { } sp) return;
+
+        for (int i = 0; i < 2; i++)
+        {
+            int x = prey.TileX + Math.Sign(prey.TileX - threat.TileX);
+            int y = prey.TileY + Math.Sign(prey.TileY - threat.TileY);
+            if (!AnimalCanStand(sp, x, y) || IsOccupied(x, y) || AnimalAt(x, y) != null) break;
+            MoveAnimal(prey, x, y);
+        }
+    }
+
+    /// <summary>A few animals near the player take a step each beat, so the world looks alive.</summary>
+    private void WanderAnimals()
+    {
+        if (Player == null) return;
+        var rng = Random.Shared;
+        foreach (var a in LiveAnimals)
+        {
+            if (a.Survival.IsSleeping || a.Species is not { } sp) continue;
+            if (Math.Abs(a.TileX - Player.TileX) > 24 || Math.Abs(a.TileY - Player.TileY) > 16) continue;
+            if (rng.NextDouble() > (sp.Habitat == AnimalHabitat.Bird ? 0.5 : 0.3)) continue;
+
+            int x = a.TileX + rng.Next(-1, 2), y = a.TileY + rng.Next(-1, 2);
+            if (AnimalCanStand(sp, x, y) && !IsOccupied(x, y) && AnimalAt(x, y) == null)
+                MoveAnimal(a, x, y);
+        }
+    }
+
+    private void MoveAnimal(AnimalBrain a, int x, int y)
+    {
+        a.TileX = x; a.TileY = y; a.CellId = CellOf(x, y);
+        _worldScene?.MoveNpc(a.AnimalId, x, y);
+    }
+
+    private static AnimalBrain? AnimalAt(int x, int y) =>
+        LiveAnimals.Find(a => a.TileX == x && a.TileY == y);
+
+    private static bool AnimalCanStand(AnimalSpecies species, int tileX, int tileY)
+    {
+        if (Grid == null) return false;
+        int cx = tileX < 0 ? (tileX - 7) / 8 : tileX / 8;
+        int cy = tileY < 0 ? (tileY - 7) / 8 : tileY / 8;
+        var tile = Grid.GetOrGenerate(cx, cy).GetTile(tileX - cx * 8, tileY - cy * 8);
+        return species.CanStandOn(tile.Surface) && !tile.HasCave;
+    }
+
+    private static string CellOf(int tileX, int tileY)
+    {
+        int cx = tileX < 0 ? (tileX - 7) / 8 : tileX / 8;
+        int cy = tileY < 0 ? (tileY - 7) / 8 : tileY / 8;
+        return $"{cx},{cy}";
     }
 
     // -------------------------------------------------------------------------
@@ -660,41 +856,31 @@ public partial class GameRoot : Node
 
     private AnimalSituation BuildAnimalSituation(AnimalBrain animal)
     {
-        ParseCellId(animal.CellId, out var cx, out var cy);
+        static int Dist(int ax, int ay, int bx, int by) => Math.Max(Math.Abs(ax - bx), Math.Abs(ay - by));
 
-        string? nearestEntity   = null;
-        string? nearestEdible   = null;
-        bool    predatorNearby  = false;
-
-        var cell = Grid?.GetIfLoaded(cx, cy);
-        if (cell is not null)
+        // Predators strike only what is right beside them: the player, an NPC, or prey
+        string? target = null;
+        if (animal.AnimalType == AnimalType.Predator)
         {
-            // Nearest entity for predators
-            nearestEntity = LiveNpcs.FirstOrDefault(n => n.CellId() == animal.CellId)?.NpcId
-                         ?? (Player?.CellId == animal.CellId ? Player.Id : null);
-
-            // Manna
-            foreach (var tile in cell.AllTiles())
-            {
-                if (tile.ItemIds.Any(i => i.StartsWith("manna")))
-                {
-                    nearestEdible = tile.ItemIds.First(i => i.StartsWith("manna"));
-                    break;
-                }
-            }
-
-            // Predator nearby for prey
-            predatorNearby = LiveAnimals.Any(a =>
-                a.AnimalId != animal.AnimalId &&
-                a.AnimalType == AnimalType.Predator &&
-                a.CellId == animal.CellId);
+            if (Player != null && !string.IsNullOrEmpty(Player.Name) &&
+                Dist(Player.TileX, Player.TileY, animal.TileX, animal.TileY) <= 1)
+                target = Player.Id;
+            target ??= LiveNpcs.FirstOrDefault(n => Dist(n.TileX, n.TileY, animal.TileX, animal.TileY) <= 1)?.NpcId;
+            target ??= LiveAnimals.FirstOrDefault(a => a.AnimalType != AnimalType.Predator &&
+                                                       Dist(a.TileX, a.TileY, animal.TileX, animal.TileY) <= 1)?.AnimalId;
         }
+
+        // Manna within reach — animals and players compete for the same supply
+        var manna = Items?.All.FirstOrDefault(i => i.Type == "manna" &&
+                                                   Dist(i.TileX, i.TileY, animal.TileX, animal.TileY) <= 1);
 
         return new AnimalSituation
         {
-            NearbyEntityId        = nearestEntity,
-            NearbyEdibleItemId    = nearestEdible,
-            NearbyPredatorPresent = predatorNearby
+            NearbyEntityId        = target,
+            NearbyEdibleItemId    = manna?.Id,
+            NearbyPredatorPresent = LiveAnimals.Any(a => a.AnimalId != animal.AnimalId &&
+                                                         a.AnimalType == AnimalType.Predator &&
+                                                         Dist(a.TileX, a.TileY, animal.TileX, animal.TileY) <= 2),
         };
     }
 
@@ -742,6 +928,8 @@ public partial class GameRoot : Node
         // NPCs
         foreach (var npc in LiveNpcs)
             Save.SaveNpc(ToSaveData(npc));
+
+        SaveAnimals();
 
         // Cells
         foreach (var cell in Grid.LoadedCells)
@@ -1045,8 +1233,9 @@ public partial class GameRoot : Node
         if (_worldScene == null || Interactions == null || Player == null) return;
 
         var skill = (Skills.SkillType)skillType;
-        var npc   = LiveNpcs.Find(n => n.NpcId == targetId);
-        var item  = Items?.All.FirstOrDefault(i => i.Id == targetId);
+        var npc    = LiveNpcs.Find(n => n.NpcId == targetId);
+        var animal = LiveAnimals.Find(a => a.AnimalId == targetId);
+        var item   = Items?.All.FirstOrDefault(i => i.Id == targetId);
 
         // Build the interaction request
         var req = new Skills.InteractionRequest
@@ -1054,7 +1243,7 @@ public partial class GameRoot : Node
             ActorId    = Player.Id,
             Primitive  = skill.ToString().ToLower(),
             TargetId   = targetId,
-            TargetName = npc?.Name ?? item?.Name ?? targetId.Replace("tile:", ""),
+            TargetName = npc?.Name ?? animal?.Name ?? item?.Name ?? targetId.Replace("tile:", ""),
             TargetType = targetId.StartsWith("tile:")                ? Skills.InteractionTarget.Tile
                        : npc != null                                 ? Skills.InteractionTarget.Npc
                        : LiveAnimals.Exists(a => a.AnimalId == targetId) ? Skills.InteractionTarget.Animal
@@ -1062,12 +1251,13 @@ public partial class GameRoot : Node
         };
 
         // Reaping needs you next to the target; talking needs you within earshot
-        int dist = npc != null  ? Math.Max(Math.Abs(npc.TileX - Player.TileX), Math.Abs(npc.TileY - Player.TileY))
-                 : item != null ? Math.Max(Math.Abs(item.TileX - Player.TileX), Math.Abs(item.TileY - Player.TileY))
+        int dist = npc != null    ? Math.Max(Math.Abs(npc.TileX - Player.TileX), Math.Abs(npc.TileY - Player.TileY))
+                 : animal != null ? Math.Max(Math.Abs(animal.TileX - Player.TileX), Math.Abs(animal.TileY - Player.TileY))
+                 : item != null   ? Math.Max(Math.Abs(item.TileX - Player.TileX), Math.Abs(item.TileY - Player.TileY))
                  : 0;
         if ((skill == Skills.SkillType.Reap && dist > 1) || (skill == Skills.SkillType.Talk && dist > 2))
         {
-            _worldScene.ShowWorldText(npc != null ? $"{req.TargetName} is too far away." : "It is out of reach.");
+            _worldScene.ShowWorldText(npc != null || animal != null ? $"The {req.TargetName} is too far away." : "It is out of reach.");
             return;
         }
 
@@ -1097,6 +1287,26 @@ public partial class GameRoot : Node
             {
                 _worldScene.ShowWorldText($"{npc.Name} resists. Neither of you falls.");
                 _worldScene.ShowNpcSpeech(npc.NpcId, "!");
+            }
+            return;
+        }
+
+        // Reap on an animal → the same resolution, against its Reap number
+        if (skill == Skills.SkillType.Reap && animal != null)
+        {
+            var kill = KillResolver.Resolve(Player.KillNumber, animal.KillNumber);
+            if (kill.AttackerSucceeds)
+            {
+                _worldScene.ShowWorldText(animal.Species?.Edible == true
+                    ? $"You reap the {animal.Name}. Its body is clean — reap it again to eat."
+                    : $"You reap the {animal.Name}. Its body is unclean.");
+                animal.Kill();
+            }
+            else
+            {
+                _worldScene.ShowWorldText($"The {animal.Name} escapes you.");
+                // A predator that survives turns on you
+                if (animal.AnimalType == AnimalType.Predator) OnAnimalAttack(animal, Player.Id);
             }
             return;
         }

@@ -93,39 +93,41 @@ public class CellGenerator
     }
 
     /// <summary>
-    /// Place animals randomly across a cell.
-    /// Distribution is random per the design — not biome-specific.
+    /// Place the starting animals of a cell. Called once per cell per world.
+    /// Deterministic for a world seed. Each group of species has its own chance;
+    /// predators are rare. Fish only on water tiles; land animals and birds on dry land.
     /// </summary>
     public List<AnimalPlacement> PlaceAnimals(WorldCell cell)
     {
         var placed  = new List<AnimalPlacement>();
-        var cellRng = new Random();
+        var cellRng = new Random(HashCoords(cell.GridX, cell.GridY, _worldSeed ^ 0x51ED));
 
-        // Small chance of each animal type appearing per cell
-        var animalTypes = new[]
+        var groups = new (Func<AnimalSpecies, bool> Pick, double Chance)[]
         {
-            (Type: "predator", Names: new[]{"lion","wolf","bear","eagle"}, Chance: 0.15f),
-            (Type: "neutral",  Names: new[]{"horse","donkey","camel","ox"}, Chance: 0.20f),
-            (Type: "prey",     Names: new[]{"sheep","deer","rabbit","dove"}, Chance: 0.30f),
-            (Type: "insect",   Names: new[]{"locust"}, Chance: 0.25f),
+            (s => s.Type == NPC.AnimalType.Predator,                                0.06),
+            (s => s.Type == NPC.AnimalType.Neutral,                                 0.20),
+            (s => s.Type == NPC.AnimalType.Prey && s.Habitat != AnimalHabitat.Water, 0.30),
+            (s => s.Type == NPC.AnimalType.Insect,                                  0.15),
+            (s => s.Habitat == AnimalHabitat.Water,                                 0.35),
         };
 
-        if (!BiomeData.Get(cell.Biome).Passable) return placed; // No animals in the sea
-
-        foreach (var (type, names, chance) in animalTypes)
+        foreach (var (pick, chance) in groups)
         {
             if (cellRng.NextDouble() > chance) continue;
 
-            var name   = names[cellRng.Next(names.Length)];
-            var tileX  = cellRng.Next(WorldCell.TilesPerSide);
-            var tileY  = cellRng.Next(WorldCell.TilesPerSide);
+            var options = AnimalSpecies.All.Where(pick).ToArray();
+            var species = options[cellRng.Next(options.Length)];
+
+            var tiles = cell.AllTiles().Where(t => species.CanStandOn(t.Surface) && !t.HasCave).ToList();
+            if (tiles.Count == 0) continue; // no water for fish, no land in the sea
+            var tile = tiles[cellRng.Next(tiles.Count)];
 
             placed.Add(new AnimalPlacement
             {
-                AnimalType = type,
-                Name       = name,
-                TileX      = tileX,
-                TileY      = tileY,
+                AnimalType = species.Type.ToString().ToLowerInvariant(),
+                Name       = species.Name,
+                TileX      = cell.GridX * WorldCell.TilesPerSide + tile.TileX,
+                TileY      = cell.GridY * WorldCell.TilesPerSide + tile.TileY,
                 CellId     = cell.CellId
             });
         }
@@ -220,6 +222,7 @@ public class CellGenerator
 
 public class AnimalPlacement
 {
+    // TileX/TileY are world tile coordinates
     public string AnimalType { get; set; } = string.Empty;
     public string Name       { get; set; } = string.Empty;
     public int    TileX      { get; set; }

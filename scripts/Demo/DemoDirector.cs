@@ -35,12 +35,26 @@ namespace AinSoph.Demo
             }
 
             BuildCaption();
-            RunTour();
+            RunTourSafely();
+        }
+
+        private async void RunTourSafely()
+        {
+            try
+            {
+                await RunTour();
+            }
+            catch (System.Exception ex)
+            {
+                // Never leave an unattended recording running forever
+                GD.PrintErr($"DemoDirector: tour failed — {ex}");
+                GetTree().Quit(1);
+            }
         }
 
         // ── The tour ──────────────────────────────────────────────────────
 
-        private async void RunTour()
+        private async Task RunTour()
         {
             await Wait(0.5);
             var scene = GameRoot.Scene;
@@ -120,6 +134,23 @@ namespace AinSoph.Demo
                 root.UsePrimitive(manna.Id, SkillType.Reap);
                 await Wait(2.4);
                 await Shot("eat");
+            }
+
+            // 4b. Animals
+            var beast = GameRoot.LiveAnimals
+                .Where(a => a.AnimalType != NPC.AnimalType.Predator && a.Species?.Habitat != World.AnimalHabitat.Water)
+                .OrderBy(a => Dist(a.TileX, a.TileY))
+                .FirstOrDefault();
+            if (beast != null && Dist(beast.TileX, beast.TileY) <= 14)
+            {
+                Caption("Animals roam — the clean ones are food. Lions, wolves, bears and eagles hunt.");
+                await WalkNextTo(() => new Vector2I(beast.TileX, beast.TileY));
+                await Wait(1.0);
+                await Shot("animals");
+                Caption($"Reap the {beast.Name}: d100 against d100, ties to the defender.");
+                if (GameRoot.LiveAnimals.Contains(beast) && Dist(beast.TileX, beast.TileY) <= 1)
+                    root.UsePrimitive(beast.AnimalId, SkillType.Reap);
+                await Wait(2.4);
             }
 
             // 5. The rib

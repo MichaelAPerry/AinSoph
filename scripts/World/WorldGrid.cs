@@ -24,6 +24,12 @@ public class WorldGrid
     // Cell access — generates on demand
     // -------------------------------------------------------------------------
 
+    /// <summary>Raised the first time a cell is generated this session.</summary>
+    public event Action<WorldCell>? CellGenerated;
+
+    /// <summary>Starting animals for a cell (see CellGenerator.PlaceAnimals).</summary>
+    public List<AnimalPlacement> PlaceAnimals(WorldCell cell) => _generator.PlaceAnimals(cell);
+
     public WorldCell GetOrGenerate(int gridX, int gridY)
     {
         var key = CellKey(gridX, gridY);
@@ -32,6 +38,7 @@ public class WorldGrid
 
         var cell = _generator.Generate(gridX, gridY);
         _cells[key] = cell;
+        CellGenerated?.Invoke(cell);
         return cell;
     }
 

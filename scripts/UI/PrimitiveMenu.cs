@@ -80,8 +80,9 @@ namespace AinSoph.UI
 
             // Position panel near click, nudge away from edges
             var vp   = GetViewport().GetVisibleRect().Size;
-            float px = Mathf.Clamp(screenPos.X - PanelW / 2f, 4f, vp.X - PanelW - 4f);
-            float py = Mathf.Clamp(screenPos.Y - PanelH - 12f, 4f, vp.Y - PanelH - 4f);
+            // Keep on screen; Max-of-Min (not Clamp) so a window smaller than the panel doesn't throw
+            float px = Mathf.Max(4f, Mathf.Min(screenPos.X - PanelW / 2f, vp.X - PanelW - 4f));
+            float py = Mathf.Max(4f, Mathf.Min(screenPos.Y - PanelH - 12f, vp.Y - PanelH - 4f));
             _panel.Position = new Vector2(px, py);
 
             Visible = true;

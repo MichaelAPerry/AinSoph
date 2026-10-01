@@ -39,6 +39,9 @@ public class AnimalBrain
     public event Action<AnimalBrain, string>? OnAttack; // target entity id
     public event Action<AnimalBrain>?         OnDeath;
     public event Action<AnimalBrain>?         OnFlee;
+    public event Action<AnimalBrain, string>? OnEat;   // edible item id
+
+    public AnimalSpecies? Species => AnimalSpecies.Get(Name);
 
     private DateTime _lastThinkUtc;
     private static readonly TimeSpan ThinkInterval = TimeSpan.FromHours(1);
@@ -53,7 +56,7 @@ public class AnimalBrain
         TileX      = tileX;
         TileY      = tileY;
         Survival   = new SurvivalTracker(nowUtc);
-        _lastThinkUtc = nowUtc;
+        _lastThinkUtc = DateTime.MinValue; // act on the first tick
     }
 
     // -------------------------------------------------------------------------
@@ -87,6 +90,7 @@ public class AnimalBrain
             (nowUtc - Survival.LastAteUtc).TotalHours > 12)
         {
             Survival.RecordEat(nowUtc);
+            OnEat?.Invoke(this, situation.NearbyEdibleItemId);
             return;
         }
 
@@ -135,6 +139,9 @@ public class AnimalBrain
         if ((nowUtc - Survival.LastSleptUtc).TotalHours > 20)
             Survival.BeginSleep(nowUtc, inCave: false);
     }
+
+    /// <summary>Killed by another being (Reap or a predator).</summary>
+    public void Kill() => OnDeath?.Invoke(this);
 
     private bool ShouldThink(DateTime nowUtc) =>
         (nowUtc - _lastThinkUtc) >= ThinkInterval;

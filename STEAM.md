@@ -13,9 +13,11 @@ Where the game stands for a Steam release, and what is left. Checked items have 
 - [x] The Linux Steam build was run from its folder: it found the model, loaded llama.cpp, and booted into the world.
 - [x] llama.cpp native libraries ship for no-AVX, AVX2 and AVX-512 CPUs, so older machines are covered.
 - [x] If the model is missing or damaged the game still starts, with scripted voices (demo mode), rather than a dead boot screen.
-- [ ] **Test the Windows build on a real Windows PC.** It exports cleanly but has not been run.
-- [ ] **App icon and version info.** `application/icon` is empty in the export presets. Set an icon, `file_version` / `product_version`, company name and copyright. The Windows exe metadata needs `rcedit` configured in Editor Settings (Export → Windows) — export on Windows, or point Godot at `rcedit.exe` under Wine.
-- [ ] **Version number.** Add `config/version` to `project.godot` and show it somewhere (boot screen) so bug reports name a build.
+- [x] App icon (`assets/icon.ico`, gold altar cross) and version info (0.1.0) on the Windows exe; window icon set in `project.godot`.
+- [x] Windows installer: `tools/package-windows.sh` → `build/AinSoph-Setup-0.1.0.exe`. Installed silently under Wine, it placed the game, model, shortcuts and uninstaller, and the installed Windows build booted and loaded the model.
+- [ ] **Test on a real Windows PC.** Wine is a good sign, not proof — try Windows 10 and 11, ideally an 8 GB machine.
+- [ ] **Show the version** somewhere in game (boot screen) so bug reports name a build.
+- [ ] **Code signing.** An unsigned installer triggers Windows SmartScreen ("Windows protected your PC"). Not needed for Steam (Steam installs the folder); worth a certificate if the installer is distributed directly.
 
 Each Steam build folder is about 1.3 GB. Upload `build/steam/windows/` and `build/steam/linux/` as separate depots.
 
@@ -40,7 +42,6 @@ Each Steam build folder is about 1.3 GB. Upload `build/steam/windows/` and `buil
 These are not technical blockers, but reviews will mention them.
 
 - [ ] **A new world is empty for the first week.** By design NPCs come only from the rib (after 168 hours of play) and its children. On Steam, a first session with no one in the world will read as broken. Options: seed founding NPCs at world creation, shorten the first rib, or open in a populated starter area. **Design decision needed.**
-- [ ] **Animals** are designed and generated per cell but never spawned.
 - [ ] **NPC creations** — NPCs decide to create skills, items and rules but don't yet take them to the Council.
 - [ ] **No audio** at all — no music, no ambience, no UI sounds.
 - [ ] **No pause / settings menu** — window mode, resolution, volume, quit to desktop. Esc currently only closes dialogue.
@@ -53,4 +54,4 @@ These are not technical blockers, but reviews will mention them.
 
 ### ALREADY WORKING
 
-World generation (stable per seed), fog of war, movement, caves, manna, eating, hunger/sleep death and respawn, NPCs that think and talk in character, kill resolution, praying at the altar and the three-seat Council, Council-granted skills and items, the rib → spouse → weekly progeny chain with lineage, routes between worlds, saves that survive restarts, demo mode and the recorded demo tour.
+World generation (stable per seed), fog of war, movement, caves, manna, eating, animals (30 species; wander, eat manna, hunt, flee, two-for-one replacement), hunger/sleep death and respawn, NPCs that think and talk in character, kill resolution, praying at the altar and the three-seat Council, Council-granted skills and items, the rib → spouse → weekly progeny chain with lineage, routes between worlds, saves that survive restarts, demo mode and the recorded demo tour.

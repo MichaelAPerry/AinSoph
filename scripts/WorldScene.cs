@@ -120,13 +120,33 @@ namespace AinSoph
             var state = System.Enum.TryParse<NpcState>(data.State, true, out var s) ? s : NpcState.Idle;
             node.Setup(data.Id, data.Name, TileRegistry.StableHash(data.Id), isAnimal: false, state);
             node.SetTilePosition(data.TileX, data.TileY);
+            node.Visible = _renderer.TileVisible(data.TileX, data.TileY);
+        }
+
+        /// <summary>Spawn or move an animal's on-map node. Animals share the NPC node type and click handling.</summary>
+        public void UpsertAnimal(string id, string species, int glyph, Color tint, int tileX, int tileY)
+        {
+            if (!_npcNodes.TryGetValue(id, out var node))
+            {
+                node = new NpcWorldNode();
+                node.EntityClicked += OnEntityClicked;
+                _entityLayer.AddChild(node);
+                _npcNodes[id] = node;
+                node.Setup(id, species, TileRegistry.StableHash(id), isAnimal: true, NpcState.Idle);
+                node.SetBody(glyph, tint);
+            }
+            node.SetTilePosition(tileX, tileY);
+            node.Visible = _renderer.TileVisible(tileX, tileY);
         }
 
         /// <summary>Move an NPC's on-map node to a new tile.</summary>
         public void MoveNpc(string npcId, int tileX, int tileY)
         {
             if (_npcNodes.TryGetValue(npcId, out var node))
+            {
                 node.SetTilePosition(tileX, tileY);
+                node.Visible = _renderer.TileVisible(tileX, tileY);
+            }
         }
 
         /// <summary>Float a line of speech above an NPC.</summary>
@@ -137,7 +157,18 @@ namespace AinSoph
         }
 
         /// <summary>Redraw the map around the player (e.g. after manna spawns or an item is eaten).</summary>
-        public void RefreshMap() => _renderer.Refresh(_playerTile);
+        public void RefreshMap()
+        {
+            _renderer.Refresh(_playerTile);
+            UpdateEntityVisibility();
+        }
+
+        /// <summary>Beings under full fog are hidden — you only see what your See reaches.</summary>
+        private void UpdateEntityVisibility()
+        {
+            foreach (var node in _npcNodes.Values)
+                node.Visible = _renderer.TileVisible(node.Tile.X, node.Tile.Y);
+        }
 
         public Vector2I PlayerTile => _playerTile;
 
@@ -347,6 +378,7 @@ namespace AinSoph
             _playerSprite.Position = new Vector2(tile.X * 32 + 16, tile.Y * 32 + 16);
             _playerLabel.Position  = new Vector2(tile.X * 32 - 34, tile.Y * 32 + 32);
             _renderer.Refresh(tile); // also centres the camera
+            UpdateEntityVisibility();
         }
 
         // ── Survival events ───────────────────────────────────────────────
