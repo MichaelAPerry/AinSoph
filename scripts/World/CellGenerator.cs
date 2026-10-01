@@ -30,7 +30,10 @@ public class CellGenerator
 
     /// <summary>
     /// Generate a cell at the given grid coordinates.
-    /// Biome is selected by weighted random — consistent for a given seed + coords.
+    /// The cell's biome is the biome at its centre in a continuous region map
+    /// (see BiomeAt); each tile takes the biome at its own, slightly warped,
+    /// position — so neighbouring cells share regions and borders are organic,
+    /// not a grid of squares. Consistent for a given seed + coords.
     /// </summary>
     public WorldCell Generate(int gridX, int gridY)
     {
@@ -38,7 +41,7 @@ public class CellGenerator
         // no matter when or in what order it is generated
         var cellRng = new Random(HashCoords(gridX, gridY, _worldSeed));
 
-        var biome = SelectBiome(cellRng);
+        var biome = BiomeAt(gridX + 0.5, gridY + 0.5);
         var profile = BiomeData.Get(biome);
 
         var cell = new WorldCell
@@ -49,10 +52,19 @@ public class CellGenerator
             Generated = true
         };
 
-        // Place tiles
+        // Place tiles — each tile samples the region map at a jittered position
         for (var x = 0; x < WorldCell.TilesPerSide; x++)
         for (var y = 0; y < WorldCell.TilesPerSide; y++)
-            cell.Tiles[x, y] = GenerateTile(x, y, biome, cellRng);
+        {
+            double wx = gridX + (x + 0.5) / WorldCell.TilesPerSide;
+            double wy = gridY + (y + 0.5) / WorldCell.TilesPerSide;
+            // Fine warp (~3 tiles) roughens borders at the tile scale
+            wx += (ValueNoise(wx * 1.6, wy * 1.6, 11) - 0.5) * 0.7;
+            wy += (ValueNoise(wx * 1.6, wy * 1.6, 12) - 0.5) * 0.7;
+            cell.Tiles[x, y] = GenerateTile(x, y, BiomeAt(wx, wy), cellRng,
+                                            gridX + (x + 0.5) / WorldCell.TilesPerSide,
+                                            gridY + (y + 0.5) / WorldCell.TilesPerSide);
+        }
 
         // Place cave
         if (profile.CaveChance > 0 && cellRng.NextDouble() < profile.CaveChance)
@@ -139,14 +151,56 @@ public class CellGenerator
     // Tile generation per biome
     // -------------------------------------------------------------------------
 
-    private static Tile GenerateTile(int x, int y, BiomeType biome, Random rng)
+    private Tile GenerateTile(int x, int y, BiomeType biome, Random rng, double wx, double wy)
     {
         return new Tile
         {
             TileX   = x,
             TileY   = y,
-            Surface = SelectSurface(biome, rng)
+            Biome   = biome,
+            Surface = SelectSurface(biome, rng, wx, wy)
         };
+    }
+
+    /// <summary>
+    /// Surface by biome. Water and trees follow smooth noise over the world
+    /// (wx, wy in cell units), so rivers wind, ponds pool and trees stand in
+    /// groves — instead of every tile flipping its own coin.
+    /// </summary>
+    private TileSurface SelectSurface(BiomeType biome, Random rng, double wx, double wy)
+    {
+        switch (biome)
+        {
+            case BiomeType.River:
+                // A river is a contour line of slow noise: a winding band of water
+                var n = ValueNoise(wx * 0.55, wy * 0.55, 41) * 0.75 + ValueNoise(wx * 1.6, wy * 1.6, 42) * 0.25;
+                return Math.Abs(n - 0.5) < 0.055 ? TileSurface.Water : TileSurface.Grass;
+
+            case BiomeType.Valley:
+                return ValueNoise(wx * 1.4, wy * 1.4, 43) > 0.80 ? TileSurface.Water : TileSurface.Grass;
+
+            case BiomeType.Forest:
+                if (ValueNoise(wx * 2.2, wy * 2.2, 44) > 0.38 && rng.NextDouble() < 0.85)
+                    return rng.NextDouble() < 0.5 ? TileSurface.TreeCedar : TileSurface.TreeOlive;
+                return TileSurface.Ground;
+
+            case BiomeType.Grove:
+                if (ValueNoise(wx * 2.6, wy * 2.6, 45) > 0.55 && rng.NextDouble() < 0.75)
+                    return rng.NextDouble() < 0.5 ? TileSurface.TreeFig : TileSurface.TreePalm;
+                return TileSurface.Grass;
+
+            case BiomeType.Mountain:
+                return ValueNoise(wx * 2.0, wy * 2.0, 46) > 0.45 ? TileSurface.Stone : TileSurface.Rock;
+
+            case BiomeType.Desert:
+                return ValueNoise(wx * 2.4, wy * 2.4, 47) > 0.78 ? TileSurface.Rock : TileSurface.Sand;
+
+            case BiomeType.Wilderness:
+                return ValueNoise(wx * 2.4, wy * 2.4, 48) > 0.80 ? TileSurface.Rock : TileSurface.Ground;
+
+            default:
+                return SelectSurface(biome, rng);
+        }
     }
 
     private static TileSurface SelectSurface(BiomeType biome, Random rng) => biome switch
@@ -194,9 +248,55 @@ public class CellGenerator
     // Biome selection
     // -------------------------------------------------------------------------
 
-    private static BiomeType SelectBiome(Random rng)
+    // -------------------------------------------------------------------------
+    // Region map — biomes as regions, not per-cell coin flips
+    // -------------------------------------------------------------------------
+
+    private const double RegionSpacing = 3.0; // cells between region centres
+
+    /// <summary>
+    /// The biome at a point, in cell units. Region centres sit on a jittered
+    /// lattice (Voronoi); each region's biome is a weighted draw, so the
+    /// weights still describe how much of the world each biome covers.
+    /// A coarse warp bends the region borders into natural shapes.
+    /// </summary>
+    public BiomeType BiomeAt(double x, double y)
     {
-        var roll  = rng.NextDouble();
+        // Coarse warp (~1 cell) so borders curve
+        double wx = x + (ValueNoise(x * 0.3, y * 0.3, 21) - 0.5) * 2.0;
+        double wy = y + (ValueNoise(x * 0.3, y * 0.3, 22) - 0.5) * 2.0;
+
+        int gx = (int)Math.Floor(wx / RegionSpacing), gy = (int)Math.Floor(wy / RegionSpacing);
+        double best = double.MaxValue;
+        int bx = gx, by = gy;
+        for (int i = -1; i <= 1; i++)
+        for (int j = -1; j <= 1; j++)
+        {
+            int cx = gx + i, cy = gy + j;
+            double px = (cx + 0.15 + 0.7 * Hash01(cx, cy, 31)) * RegionSpacing;
+            double py = (cy + 0.15 + 0.7 * Hash01(cx, cy, 32)) * RegionSpacing;
+            double d  = (px - wx) * (px - wx) + (py - wy) * (py - wy);
+            if (d < best) { best = d; bx = cx; by = cy; }
+        }
+        return SelectBiome(Hash01(bx, by, 33));
+    }
+
+    /// <summary>Smooth noise in [0,1], deterministic for the world seed.</summary>
+    private double ValueNoise(double x, double y, int channel)
+    {
+        int x0 = (int)Math.Floor(x), y0 = (int)Math.Floor(y);
+        double fx = x - x0, fy = y - y0;
+        double sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        double a = Hash01(x0, y0, channel),     b = Hash01(x0 + 1, y0, channel);
+        double c = Hash01(x0, y0 + 1, channel), d = Hash01(x0 + 1, y0 + 1, channel);
+        return (a + (b - a) * sx) + ((c + (d - c) * sx) - (a + (b - a) * sx)) * sy;
+    }
+
+    private double Hash01(int x, int y, int channel) =>
+        HashCoords(x, y, _worldSeed ^ (channel * 0x632BE5AB)) / (double)int.MaxValue;
+
+    private static BiomeType SelectBiome(double roll)
+    {
         var cumul = 0f;
         foreach (var (biome, weight) in BiomeWeights)
         {

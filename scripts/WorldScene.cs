@@ -270,12 +270,11 @@ namespace AinSoph
         {
             _primitiveMenu?.Close();
 
-            // The sea is impassable on foot
-            var destCellCoord = TileToCell(newTile);
-            var destCell      = Grid?.GetOrGenerate(destCellCoord.X, destCellCoord.Y);
-            var hereCell = Grid?.GetOrGenerate(TileToCell(_playerTile).X, TileToCell(_playerTile).Y);
-            bool stranded = hereCell != null && !BiomeData.Get(hereCell.Biome).Passable;
-            if (destCell != null && !BiomeData.Get(destCell.Biome).Passable && !stranded)
+            // The sea is impassable on foot (per tile — coastlines cross cell lines)
+            var destTile = TileAt(newTile);
+            var hereTile = TileAt(_playerTile);
+            bool stranded = hereTile != null && !BiomeData.Get(hereTile.Biome).Passable;
+            if (destTile != null && !BiomeData.Get(destTile.Biome).Passable && !stranded)
             {
                 ShowWorldText("The sea will not carry you.");
                 return;

@@ -1348,9 +1348,8 @@ public partial class GameRoot : Node
         if (Grid == null) return false;
         int cx = tileX < 0 ? (tileX - 7) / 8 : tileX / 8;
         int cy = tileY < 0 ? (tileY - 7) / 8 : tileY / 8;
-        var cell = Grid.GetOrGenerate(cx, cy);
-        if (!BiomeData.Get(cell.Biome).Passable) return false;
-        return cell.GetTile(tileX - cx * 8, tileY - cy * 8).Surface != TileSurface.Water;
+        var tile = Grid.GetOrGenerate(cx, cy).GetTile(tileX - cx * 8, tileY - cy * 8);
+        return BiomeData.Get(tile.Biome).Passable && tile.Surface != TileSurface.Water;
     }
 
     /// <summary>Global coords of a dry, cave-free tile in a cell (centre-most first).</summary>

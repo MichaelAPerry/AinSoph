@@ -138,6 +138,26 @@ void fragment() {
         public static ShaderMaterial CutoutMaterial =>
             _cutout ??= new ShaderMaterial { Shader = new Shader { Code = CutoutShaderCode } };
 
+        // One material for every ground tile. The sprite's modulate carries the
+        // tile's own (blended) ground colour in RGB and its fog light in alpha,
+        // so biome borders can feather tile by tile without a material per tile.
+        private const string BlendedGroundShaderCode = @"
+shader_type canvas_item;
+varying vec4 tint;
+void vertex() { tint = COLOR; }
+void fragment() {
+    vec4 c = texture(TEXTURE, UV);
+    if (distance(c.rgb, vec3(34.0, 35.0, 35.0) / 255.0) < 0.02)
+        COLOR = vec4(tint.rgb, 1.0);          // ground: blended colour, already lit
+    else
+        COLOR = vec4(c.rgb * tint.a, c.a);    // glyph: its own colour, lit
+}";
+
+        private static ShaderMaterial? _blendedGround;
+
+        public static ShaderMaterial BlendedGroundMaterial =>
+            _blendedGround ??= new ShaderMaterial { Shader = new Shader { Code = BlendedGroundShaderCode } };
+
         public static ShaderMaterial GroundMaterialFor(BiomeType biome)
         {
             if (_groundMaterials.TryGetValue(biome, out var mat)) return mat;
