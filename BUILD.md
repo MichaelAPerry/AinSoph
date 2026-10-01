@@ -78,6 +78,23 @@ git tag v0.1.0 && git push origin v0.1.0
 
 `.github/workflows/release.yml` downloads Godot, the export templates and the model, runs the self-test against the real model, builds the installer and the Linux build, and attaches both to a GitHub Release. It can also be run by hand from the Actions tab (that makes a draft release). Every push also runs `.github/workflows/ci.yml`: build and `--selftest`.
 
+### itch.io
+
+`tools/upload-itch.sh` pushes `build/steam/windows` and `build/steam/linux` to itch.io as the channels `windows` and `linux` with [butler](https://itch.io/docs/butler/) (downloaded automatically if missing). It also writes an `.itch.toml` so the itch app knows what to launch.
+
+```
+tools/build-steam.sh
+BUTLER_API_KEY=<key> ITCH_GAME=<itch user>/<game slug> tools/upload-itch.sh
+```
+
+To have every tagged release go to itch.io automatically:
+
+1. Create the game page on itch.io (Kind: *Downloadable*, Pricing: *No payments* or *Donate*). Note its URL — `https://<user>.itch.io/<slug>`.
+2. Create an API key at <https://itch.io/user/settings/api-keys>.
+3. In the GitHub repo: **Settings → Secrets and variables → Actions** — add the secret `BUTLER_API_KEY`, and under *Variables* add `ITCH_GAME` = `<user>/<slug>`.
+
+The release workflow skips the itch step until both are set.
+
 **A C# export is a folder, not a single file.** Next to the executable is a `data_AinSoph_<platform>/` folder holding the .NET runtime, LLamaSharp and llama.cpp's native libraries (no-AVX, AVX2 and AVX-512 builds, so old CPUs work). Ship the whole folder.
 
 ---

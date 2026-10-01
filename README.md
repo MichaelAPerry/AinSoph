@@ -12,6 +12,12 @@ Nothing phones home. No subscription. No server you don't control.
 
 > **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 28-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
+## Download
+
+**[Latest release →](https://github.com/MichaelAPerry/AinSoph/releases/latest)** — Windows installer (`AinSoph-Setup-<version>.exe`) and Linux build. Free. Needs a 64-bit CPU and 8 GB of RAM; no graphics card. The AI model is included and runs offline.
+
+Windows may warn that the installer is from an unknown publisher (it isn't code-signed yet): **More info → Run anyway**.
+
 ---
 
 ## What It Is

@@ -26,6 +26,8 @@ Where the game stands for a Steam release, and what is left. Checked items have 
 
 ### STEAMWORKS — needs Michael's account
 
+**The store page is drafted in [`docs/steam/store-page.md`](docs/steam/store-page.md)** — short and long descriptions, tags, system requirements, the AI disclosure text to paste, content descriptors, screenshot order — with placeholder capsule art at every required size in `docs/steam/` (`tools/make-capsules.py`).
+
 - [ ] Steam Direct fee ($100 per game) and the Steamworks partner account / tax / bank details.
 - [ ] Create the app; note the App ID and the two depot IDs (Windows, Linux).
 - [ ] Upload builds with SteamPipe (`steamcmd` + an `app_build` VDF); launch options: `AinSoph.exe` (Windows), `AinSoph.x86_64` (Linux).

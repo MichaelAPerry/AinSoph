@@ -16,6 +16,10 @@ jobs:
   package:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    env:
+      # itch.io upload runs only when both are set (Settings → Secrets and variables → Actions)
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_GAME: ${{ vars.ITCH_GAME }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,6 +72,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           draft: ${{ github.event_name == 'workflow_dispatch' }}
+          body_path: docs/release-notes.md
           files: |
             build/AinSoph-Setup-*.exe
             build/AinSoph-*-linux-x86_64.tar.gz
+
+      - name: Upload to itch.io
+        if: ${{ env.BUTLER_API_KEY != '' && env.ITCH_GAME != '' && github.event_name == 'push' }}
+        run: tools/upload-itch.sh
