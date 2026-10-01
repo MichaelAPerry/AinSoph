@@ -52,6 +52,9 @@ jobs:
           curl -sSL -o models/qwen2.5-1.5b.gguf \
             https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
 
+      - name: Build C#
+        run: dotnet build -v q
+
       - name: Import project and point Godot at rcedit
         run: |
           timeout 600 "$GODOT" --headless --editor --quit --path . || true
