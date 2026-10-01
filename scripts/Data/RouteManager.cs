@@ -40,13 +40,15 @@ public class RouteManager
 
         var maxMigrants = Math.Max(1, _worldNpcs.Count / 10);
         var rng         = new Random();
-        var pool        = _worldNpcs.OrderBy(_ => rng.Next()).Take(maxMigrants).ToList();
+        // The spouse never leaves the sphere
+        var pool        = _worldNpcs.Where(n => !n.IsSpouse)
+                                    .OrderBy(_ => rng.Next()).Take(maxMigrants).ToList();
 
         var saveData = pool.Select(npc => new NpcSaveData
         {
             Id            = npc.NpcId,
             DecanId       = npc.Decan.Id,
-            Name          = npc.Decan.Name,
+            Name          = npc.Name,
             State         = "idle",
             MemoryWill    = npc.Memory.Will,
             MemoryThought = npc.Memory.Thought,
@@ -59,7 +61,7 @@ public class RouteManager
             BrokenHear    = npc.BrokenHear,
             BrokenTalk    = npc.BrokenTalk,
             IsForeigner   = false, // they are native until they cross
-            Lineage       = new List<string>()
+            Lineage       = npc.Lineage.ToList()
         }).ToList();
 
         _save.ExportMigrationPacket(saveData, outputPath);

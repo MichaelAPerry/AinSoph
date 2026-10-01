@@ -17,6 +17,13 @@ public class TribeManager
     private readonly List<NpcBrain>  _worldNpcs; // live NPC list, shared with world
     private DateTime _lastProgenyBirthUtc;
 
+    /// <summary>When the last progeny was born (or the spouse was made). Saved with the player.</summary>
+    public DateTime LastProgenyBirthUtc
+    {
+        get => _lastProgenyBirthUtc;
+        set => _lastProgenyBirthUtc = value;
+    }
+
     private static readonly TimeSpan ProgenyInterval = TimeSpan.FromDays(7);
 
     public event Action<NpcBrain>?   OnSpouseCreated;
@@ -50,7 +57,8 @@ public class TribeManager
         var decan  = DecanRegistry.DrawRandom();
         var npcId  = $"spouse:{_player.Id}";
 
-        var spouse = new NpcBrain(npcId, decan, llm, nowUtc);
+        var spouse = new NpcBrain(npcId, decan, llm, nowUtc) { Name = name };
+        spouse.Lineage.Add($"origin:{_player.Id}");
 
         // Roll birth impairment
         var rng = new Random();
@@ -68,6 +76,9 @@ public class TribeManager
 
         _player.ClaimRib(npcId);
         _worldNpcs.Add(spouse);
+
+        // The first child comes a week after the spouse, not a week after the session began
+        _lastProgenyBirthUtc = nowUtc;
 
         OnSpouseCreated?.Invoke(spouse);
         GD.Print($"TribeManager: spouse created — {name} [{decan.Name}]");
@@ -110,9 +121,9 @@ public class TribeManager
         progeny.BrokenTalk = bTalk;
 
         // Lineage — append-only origin record
-        // Stored in action memory as the closest equivalent until a lineage field is added
+        progeny.Lineage.Add($"origin:{_player.Id}");
         progeny.Memory.Write(MemorySlot.Action,
-            $"Born of {_player.Id} on {nowUtc:yyyy-MM-dd}.");
+            $"Born of {_player.Name} on {nowUtc:yyyy-MM-dd}.");
 
         _player.AddProgeny(npcId);
         _worldNpcs.Add(progeny);

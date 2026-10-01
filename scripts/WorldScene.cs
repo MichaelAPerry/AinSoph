@@ -36,6 +36,9 @@ namespace AinSoph
         /// <summary>True while a full-screen overlay (e.g. character creation) owns the keyboard.</summary>
         public bool             InputLocked { get; set; }
 
+        /// <summary>The player pressed RIB.</summary>
+        public event System.Action? RibRequested;
+
         // ── Child nodes ───────────────────────────────────────────────────
         private Camera2D        _camera;
         private WorldRenderer   _renderer;
@@ -233,7 +236,9 @@ namespace AinSoph
             // The sea is impassable on foot
             var destCellCoord = TileToCell(newTile);
             var destCell      = Grid?.GetOrGenerate(destCellCoord.X, destCellCoord.Y);
-            if (destCell != null && !BiomeData.Get(destCell.Biome).Passable)
+            var hereCell = Grid?.GetOrGenerate(TileToCell(_playerTile).X, TileToCell(_playerTile).Y);
+            bool stranded = hereCell != null && !BiomeData.Get(hereCell.Biome).Passable;
+            if (destCell != null && !BiomeData.Get(destCell.Biome).Passable && !stranded)
             {
                 ShowWorldText("The sea will not carry you.");
                 return;
@@ -305,6 +310,7 @@ namespace AinSoph
         // ── Scripted control (demo tour) ──────────────────────────────────
 
         public void Step(Vector2I dir) => ApplyPlayerMove(_playerTile + dir);
+        public void SetRibAvailable(bool available) => _hud.SetRibAvailable(available);
         public bool DialogueOpen => _dialogue.Visible;
         public string DialogueSpeech => _dialogue.SpeechText;
         public void TypeDialogue(string text)   => _dialogue.SetInputText(text);
@@ -407,6 +413,9 @@ namespace AinSoph
 
             _hud.Connect(HUD.SignalName.SleepRequested,
                 Callable.From(OnSleepRequested));
+
+            _hud.Connect(HUD.SignalName.RibRequested,
+                Callable.From(() => RibRequested?.Invoke()));
 
             // World text — oblique/environmental responses, fades out above action bar
             var hudLayer = new CanvasLayer();

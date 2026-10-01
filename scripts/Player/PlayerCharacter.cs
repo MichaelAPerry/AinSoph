@@ -97,6 +97,19 @@ public class PlayerCharacter
 
     public bool HasSpouse => SpouseNpcId is not null;
 
+    /// <summary>Restore tribe state from a save. The rib is never taken back once earned.</summary>
+    public void RestoreTribe(bool hasRib, string? spouseNpcId, IEnumerable<string> progenyIds)
+    {
+        HasRib      = hasRib || spouseNpcId is not null;
+        SpouseNpcId = spouseNpcId;
+        ProgenyIds.Clear();
+        ProgenyIds.AddRange(progenyIds);
+        CheckRibEarned();
+    }
+
+    /// <summary>Grant the rib now — for testing and the demo tour only.</summary>
+    public void GrantRibForTesting() => HasRib = true;
+
     // -------------------------------------------------------------------------
     // Progeny
     // -------------------------------------------------------------------------

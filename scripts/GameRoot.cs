@@ -55,7 +55,6 @@ public partial class GameRoot : Node
     // Config
     // -------------------------------------------------------------------------
 
-    private const string ModelSubPath = "user://models/qwen2.5-3b.gguf";
     private const string SaveSubPath  = "user://saves/world";
     private const string TourSavePath = "user://saves/demo_tour"; // wiped each tour run
 
@@ -66,6 +65,8 @@ public partial class GameRoot : Node
 
     private int      _worldSeed;
     private DateTime _worldCreatedUtc = DateTime.UtcNow;
+
+    private bool _ribButtonShown;
 
     // NPC pump — the queue is drained continuously, one NPC at a time
     private double _npcPumpTimer;
@@ -182,8 +183,11 @@ public partial class GameRoot : Node
                 TileX  = playerData.TileX,
                 TileY  = playerData.TileY,
             };
-            Player.AccumulatedPlayHours = 0; // restored from save data below
-            GD.Print($"GameRoot: player '{Player.Name}' loaded");
+            Player.AccumulatedPlayHours = playerData.AccumulatedPlayHours;
+            Player.RestoreTribe(playerData.HasRib, playerData.SpouseNpcId, playerData.ProgenyIds);
+            foreach (var skill in playerData.SkillIds) Player.SkillIds.Add(skill);
+            GD.Print($"GameRoot: player '{Player.Name}' loaded — {Player.AccumulatedPlayHours:F1}h played" +
+                     (Player.HasSpouse ? ", has spouse" : Player.HasRib ? ", rib earned" : ""));
         }
         else
         {
@@ -200,6 +204,7 @@ public partial class GameRoot : Node
         }
 
         Player.BeginSession(nowUtc);
+        if (HasArg("--grant-rib") || tour) Player.GrantRibForTesting(); // testing / demo tour only
 
         // Load all saved NPCs into the queue
         foreach (var npcData in Save.LoadAllNpcs())
@@ -207,8 +212,9 @@ public partial class GameRoot : Node
             var decan = DecanRegistry.Get(npcData.DecanId);
             if (decan is null) continue;
 
-            var brain = new NpcBrain(npcData.Id, decan, Llm, nowUtc);
+            var brain = new NpcBrain(npcData.Id, decan, Llm, nowUtc) { Name = npcData.Name };
             brain.SetTile(npcData.TileX, npcData.TileY);
+            brain.Lineage.AddRange(npcData.Lineage);
             brain.Memory.Write(NPC.MemorySlot.Will,    npcData.MemoryWill);
             brain.Memory.Write(NPC.MemorySlot.Thought, npcData.MemoryThought);
             brain.Memory.Write(NPC.MemorySlot.Feeling, npcData.MemoryFeeling);
@@ -232,9 +238,7 @@ public partial class GameRoot : Node
             SeedDemoNpcs(nowUtc);
 
         // 8. Tribe
-        Tribe = new TribeManager(Player, LiveNpcs, nowUtc);
-        Tribe.OnSpouseCreated += npc => NpcQueue.Enqueue(npc, priority: true);
-        Tribe.OnProgenyBorn   += npc => NpcQueue.Enqueue(npc);
+        CreateTribe(nowUtc, playerData?.LastProgenyBirthUtc);
 
         // 9. Council + interaction
         Council      = new TribuneCouncil(Llm);
@@ -277,6 +281,7 @@ public partial class GameRoot : Node
                 scene.UpsertNpc(ToSaveData(npc));
 
             _worldScene = scene;
+            scene.RibRequested += OnRibRequested;
             if (IsDemo) scene.ShowWorldText("Demo mode — the voices you hear are scripted.");
             if (tour)   AddChild(new Demo.DemoDirector());
             GD.Print("GameRoot: WorldScene ready");
@@ -318,6 +323,16 @@ public partial class GameRoot : Node
         if (!IsReady || Save is null || Player is null) return;
 
         Player.TickPlayTime(DateTime.UtcNow);
+
+        // The rib — announce it once when earned; the RIB button stays until it is used
+        bool ribReady = Player.HasRib && !Player.HasSpouse && !string.IsNullOrEmpty(Player.Name);
+        if (ribReady != _ribButtonShown && _worldScene != null)
+        {
+            _ribButtonShown = ribReady;
+            _worldScene.SetRibAvailable(ribReady);
+            if (ribReady)
+                _worldScene.ShowWorldText("A week has passed in this world. Something stirs at your side — the rib is yours.");
+        }
 
         // Keep the NPC queue moving — each NPC decides itself whether it is due to think
         _npcPumpTimer -= delta;
@@ -398,6 +413,10 @@ public partial class GameRoot : Node
             CellId = $"{spawnCell.GridX},{spawnCell.GridY}"
         };
         if (_worldScene != null) _worldScene.Player = Player;
+        Player.BeginSession(nowUtc);
+
+        // A new character has their own week to earn their own rib
+        CreateTribe(nowUtc, null);
 
         var spawnTile = new Vector2I(Player.TileX, Player.TileY);
 
@@ -462,7 +481,8 @@ public partial class GameRoot : Node
                 continue;
             }
 
-            var brain = new NpcBrain(data.Id, decan, Llm, nowUtc);
+            var brain = new NpcBrain(data.Id, decan, Llm, nowUtc) { Name = data.Name };
+            brain.Lineage.AddRange(data.Lineage);
             brain.Memory.Write(NPC.MemorySlot.Will,    data.MemoryWill);
             brain.Memory.Write(NPC.MemorySlot.Thought, data.MemoryThought);
             brain.Memory.Write(NPC.MemorySlot.Feeling, data.MemoryFeeling);
@@ -492,14 +512,14 @@ public partial class GameRoot : Node
         NpcQueue?.Remove(npc.NpcId);
 
         // Drop body as a world item at last known position
-        Items?.SpawnBody(npc.Decan.Name, npc.TileX, npc.TileY);
+        Items?.SpawnBody(npc.Name, npc.TileX, npc.TileY);
 
         // Delete NPC save file
         Save?.DeleteNpc(npc.NpcId);
         _worldScene?.RemoveNpc(npc.NpcId);
         _worldScene?.RefreshMap();
 
-        GD.Print($"GameRoot: {npc.Decan.Name} died at {npc.CellId()} — body placed");
+        GD.Print($"GameRoot: {npc.Name} died at {npc.CellId()} — body placed");
     }
 
     private void OnAnimalDeath(AnimalBrain animal)
@@ -569,7 +589,7 @@ public partial class GameRoot : Node
                 {
                     Id        = other.NpcId,
                     Type      = "npc",
-                    Name      = other.Decan.Name,
+                    Name      = other.Name,
                     CellId    = cell.CellId,
                     IsSleeping = other.State == NpcState.Sleeping
                 });
@@ -708,7 +728,15 @@ public partial class GameRoot : Node
             TileY        = Player.TileY,
             LastAteUtc   = Player.Survival.LastAteUtc,
             LastSleptUtc = Player.Survival.LastSleptUtc,
-            IsInCave     = Player.Survival.IsInCave
+            IsInCave     = Player.Survival.IsInCave,
+            SkillIds     = Player.SkillIds.ToList(),
+
+            // Rib — play time must survive restarts or a week of play never adds up
+            AccumulatedPlayHours = Player.TotalPlayHours,
+            HasRib               = Player.HasRib,
+            SpouseNpcId          = Player.SpouseNpcId,
+            ProgenyIds           = Player.ProgenyIds.ToList(),
+            LastProgenyBirthUtc  = Tribe?.LastProgenyBirthUtc,
         });
 
         // NPCs
@@ -849,14 +877,78 @@ public partial class GameRoot : Node
             _worldScene?.ShowNpcSpeech(npc.NpcId, $"(working on {decision.CreationIntent})");
     }
 
+    // ── Tribe: the rib, the spouse, progeny ───────────────────────────────
+
+    private void CreateTribe(DateTime nowUtc, DateTime? lastProgenyBirthUtc)
+    {
+        if (Player == null) return;
+        Tribe = new TribeManager(Player, LiveNpcs, nowUtc);
+        if (lastProgenyBirthUtc.HasValue) Tribe.LastProgenyBirthUtc = lastProgenyBirthUtc.Value;
+
+        Tribe.OnSpouseCreated += npc => AdoptTribeNpc(npc, Player.TileX, Player.TileY, priority: true);
+        Tribe.OnProgenyBorn   += npc =>
+        {
+            // Children are born beside their mother or father — the spouse — if they still live
+            var spouse = LiveNpcs.Find(n => n.NpcId == Player?.SpouseNpcId);
+            AdoptTribeNpc(npc, spouse?.TileX ?? Player!.TileX, spouse?.TileY ?? Player!.TileY, priority: false);
+            _worldScene?.ShowWorldText($"A child is born to your tribe: {npc.Name}.");
+        };
+    }
+
+    /// <summary>Give a newly made NPC a place in the world, a mind in the queue, and a body on the map.</summary>
+    private void AdoptTribeNpc(NpcBrain npc, int nearX, int nearY, bool priority)
+    {
+        var (tx, ty) = FindFreeTileNear(nearX, nearY);
+        npc.SetTile(tx, ty);
+        npc.OnDeath    += OnNpcDeath;
+        npc.OnDecision += OnNpcDecision;
+        NpcQueue?.Enqueue(npc, priority);
+        _worldScene?.UpsertNpc(ToSaveData(npc));
+        SaveAll();
+    }
+
+    private void OnRibRequested()
+    {
+        if (_worldScene == null || Player == null || Tribe == null || !Player.HasRib || Player.HasSpouse) return;
+
+        var screen = new AinSoph.UI.SpouseCreationScreen();
+        AddChild(screen);
+        _worldScene.InputLocked = true;
+        screen.Show(
+            (name, description) =>
+            {
+                _worldScene.InputLocked = false;
+                var spouse = Tribe.CreateSpouse(name, description, Llm, DateTime.UtcNow);
+                if (spouse == null) return;
+                _worldScene.ShowWorldText($"{spouse.Name} stands beside you. Your tribe has begun.");
+                _worldScene.ShowNpcSpeech(spouse.NpcId, "…");
+            },
+            () => _worldScene.InputLocked = false);
+    }
+
+    /// <summary>The nearest dry, unoccupied tile to a point (spiralling outward).</summary>
+    private static (int TileX, int TileY) FindFreeTileNear(int x, int y)
+    {
+        for (int r = 1; r <= 6; r++)
+        for (int dx = -r; dx <= r; dx++)
+        for (int dy = -r; dy <= r; dy++)
+        {
+            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != r) continue;
+            if (IsPassableTile(x + dx, y + dy) && !IsOccupied(x + dx, y + dy))
+                return (x + dx, y + dy);
+        }
+        return (x + 1, y);
+    }
+
     // ── NPC helpers ───────────────────────────────────────────────────────
 
     private static Data.NpcSaveData ToSaveData(NpcBrain npc) => new()
     {
         Id            = npc.NpcId,
         DecanId       = npc.Decan.Id.ToString(),
-        Name          = npc.Decan.Name,
+        Name          = npc.Name,
         CellId        = npc.CellId(),
+        Lineage       = npc.Lineage.ToList(),
         TileX         = npc.TileX,
         TileY         = npc.TileY,
         State         = npc.State.ToString().ToLower(),
@@ -945,6 +1037,9 @@ public partial class GameRoot : Node
 
     public static WorldScene? Scene => _worldScene;
 
+    /// <summary>Press RIB (demo tour).</summary>
+    public void UseRib() => OnRibRequested();
+
     private async void OnPrimitiveUsed(string targetId, int skillType)
     {
         if (_worldScene == null || Interactions == null || Player == null) return;
@@ -959,7 +1054,7 @@ public partial class GameRoot : Node
             ActorId    = Player.Id,
             Primitive  = skill.ToString().ToLower(),
             TargetId   = targetId,
-            TargetName = npc?.Decan.Name ?? item?.Name ?? targetId.Replace("tile:", ""),
+            TargetName = npc?.Name ?? item?.Name ?? targetId.Replace("tile:", ""),
             TargetType = targetId.StartsWith("tile:")                ? Skills.InteractionTarget.Tile
                        : npc != null                                 ? Skills.InteractionTarget.Npc
                        : LiveAnimals.Exists(a => a.AnimalId == targetId) ? Skills.InteractionTarget.Animal
@@ -981,8 +1076,8 @@ public partial class GameRoot : Node
         {
             var decanId = int.TryParse(npc.Decan.Id, out var did) ? did : TileRegistryHash(npc.Decan.Id);
             _worldScene.OpenNpcDialogueFull(
-                targetId, npc.Decan.Name, decanId, TileRegistryHash(targetId),
-                npc.BrokenTalk ? "(They cannot speak. They watch you.)" : $"{npc.Decan.Name} turns to you.",
+                targetId, npc.Name, decanId, TileRegistryHash(targetId),
+                npc.BrokenTalk ? "(They cannot speak. They watch you.)" : $"{npc.Name} turns to you.",
                 text => TalkToNpc(npc, text));
             return;
         }
@@ -991,16 +1086,16 @@ public partial class GameRoot : Node
         if (skill == Skills.SkillType.Reap && npc != null)
         {
             var kill = KillResolver.Resolve(Player.KillNumber, npc.KillNumber);
-            GD.Print($"GameRoot: reap {npc.Decan.Name} — {kill.AttackerRoll}/{kill.AttackerKillNum} " +
+            GD.Print($"GameRoot: reap {npc.Name} — {kill.AttackerRoll}/{kill.AttackerKillNum} " +
                      $"vs {kill.DefenderRoll}/{kill.DefenderKillNum}");
             if (kill.AttackerSucceeds)
             {
-                _worldScene.ShowWorldText($"You reap {npc.Decan.Name}. The body remains.");
+                _worldScene.ShowWorldText($"You reap {npc.Name}. The body remains.");
                 npc.Kill();
             }
             else
             {
-                _worldScene.ShowWorldText($"{npc.Decan.Name} resists. Neither of you falls.");
+                _worldScene.ShowWorldText($"{npc.Name} resists. Neither of you falls.");
                 _worldScene.ShowNpcSpeech(npc.NpcId, "!");
             }
             return;

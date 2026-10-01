@@ -32,6 +32,20 @@ public class NpcBrain
     // Foreigner — set on arrival via route, permanent
     public bool IsForeigner { get; set; }
 
+    /// <summary>What others call them. The decan's name unless someone named them (the spouse).</summary>
+    public string Name
+    {
+        get => string.IsNullOrWhiteSpace(_name) ? Decan.Name : _name;
+        set => _name = value;
+    }
+    private string? _name;
+
+    /// <summary>Append-only origin record — player ids, intermarriages, migrations.</summary>
+    public List<string> Lineage { get; } = new();
+
+    /// <summary>The spouse never leaves the sphere it was made in.</summary>
+    public bool IsSpouse => NpcId.StartsWith("spouse:");
+
     /// <summary>
     /// Roll birth impairment for a newly created NPC.
     /// Rates from SKILLS.md — real-world natural occurrence.

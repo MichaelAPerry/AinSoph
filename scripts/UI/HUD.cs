@@ -27,6 +27,7 @@ namespace AinSoph.UI
         private Label         _clockLabel;
         private Label         _warningLabel;
         private Button        _sleepBtn;
+        private Button        _ribBtn;
 
         // ── State ────────────────────────────────────────────────────────────
         private List<SkillType> _unlockedSkills = new();
@@ -89,6 +90,12 @@ namespace AinSoph.UI
             _isSleeping = sleeping;
             if (_sleepBtn != null)
                 _sleepBtn.Text = sleeping ? "WAKE" : "SLEEP";
+        }
+
+        /// <summary>Show the RIB button while the rib is earned but not yet used.</summary>
+        public void SetRibAvailable(bool available)
+        {
+            if (_ribBtn != null) _ribBtn.Visible = available;
         }
 
         /// <summary>Flash a warning in the centre of the screen for 4 seconds.</summary>
@@ -157,6 +164,21 @@ namespace AinSoph.UI
             _sleepBtn.AddThemeColorOverride("font_color", new Color(0.55f, 0.78f, 0.60f));
             _sleepBtn.Pressed += () => EmitSignal(SignalName.SleepRequested);
             _actionBarPanel.AddChild(_sleepBtn);
+
+            // ── RIB button — appears once the rib is earned, until it is used ──
+            _ribBtn = new Button();
+            _ribBtn.Text     = "RIB";
+            _ribBtn.Size     = new Vector2(64, 38);
+            _ribBtn.Position = new Vector2(w - 240, (barH - 38) / 2f);
+            _ribBtn.Visible  = false;
+            _ribBtn.TooltipText = "Give form to your spouse";
+            _ribBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.18f, 0.14f, 0.06f)));
+            _ribBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.30f, 0.24f, 0.10f)));
+            _ribBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.24f, 0.19f, 0.08f)));
+            _ribBtn.AddThemeFontSizeOverride("font_size", 10);
+            _ribBtn.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.45f));
+            _ribBtn.Pressed += () => EmitSignal(SignalName.RibRequested);
+            _actionBarPanel.AddChild(_ribBtn);
 
             // ── ROUTES button — far right of action bar ──
             var routesBtn = new Button();
@@ -282,5 +304,6 @@ namespace AinSoph.UI
         [Signal] public delegate void SkillSelectedEventHandler(int skillType);
         [Signal] public delegate void RoutesOpenRequestedEventHandler();
         [Signal] public delegate void SleepRequestedEventHandler();
+        [Signal] public delegate void RibRequestedEventHandler();
     }
 }

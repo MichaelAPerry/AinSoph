@@ -32,5 +32,6 @@ ffmpeg -v error -y -i "$TMP/tour.avi" -c:v libx264 -preset slow -crf 26 \
 ffmpeg -v error -y -i "$TMP/tour.avi" \
   -vf "fps=12,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer" \
   "$OUT/tour.gif"
+rm -f "$OUT"/[0-9][0-9]-*.png   # step numbers shift when the tour changes
 cp "$TMP"/shots/*.png "$OUT/"
 echo "Demo written to $OUT"

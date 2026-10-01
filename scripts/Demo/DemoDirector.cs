@@ -122,7 +122,29 @@ namespace AinSoph.Demo
                 await Shot("eat");
             }
 
-            // 5. The altar
+            // 5. The rib
+            if (GameRoot.Player is { HasRib: true, HasSpouse: false })
+            {
+                Caption("After a week of play you earn the rib — one, ever.  (The tour grants it now.)");
+                await Wait(2.6);
+                await Shot("rib-earned");
+                root.UseRib();
+                await Wait(1.2);
+                var ribScreen = root.GetChildren().OfType<SpouseCreationScreen>().FirstOrDefault();
+                if (ribScreen != null)
+                {
+                    Caption("You name and describe your spouse yourself. Their nature is drawn from the 72.");
+                    await Wait(2.4);
+                    await Shot("rib");
+                    ribScreen.Submit("Hava", "Quick to laugh, slow to forgive. Keeps the fire. Knows every star by name.");
+                    await Wait(1.0);
+                    Caption("Your spouse never leaves your world. Each week, one or two children are born.");
+                    await Wait(3.0);
+                    await Shot("spouse");
+                }
+            }
+
+            // 6. The altar
             var altar = GameRoot.Altar;
             if (altar != null)
             {

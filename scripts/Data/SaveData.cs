@@ -110,6 +110,12 @@ public class PlayerSaveData
     // Play time — for rib tracking
     public double AccumulatedPlayHours { get; set; }
 
+    // Tribe — the rib, once earned, and what it became
+    public bool          HasRib              { get; set; }
+    public string?       SpouseNpcId         { get; set; }
+    public List<string>  ProgenyIds          { get; set; } = new();
+    public DateTime?     LastProgenyBirthUtc { get; set; }
+
     // Inventory — item ids
     public List<string> InventoryItemIds { get; set; } = new();
 

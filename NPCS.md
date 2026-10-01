@@ -13,7 +13,7 @@ The server does not generate NPCs independently.
 
 ### THE LOCAL LLM
 
-The model is Qwen 2.5 3B running on llama.cpp. Qwen Research License (not Apache 2.0 — see README, Licenses). Runs on 8GB RAM, CPU-only.
+The model is Qwen 2.5 1.5B Instruct running on llama.cpp. Apache 2.0 license. Runs on 8GB RAM, CPU-only.
 
 The local LLM powers all NPC behavior in that player's sphere — including NPC-driven content creation.
 

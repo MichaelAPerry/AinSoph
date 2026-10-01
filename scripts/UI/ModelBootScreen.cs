@@ -10,14 +10,16 @@ namespace AinSoph.UI
     /// Extracts the bundled GGUF from the PCK to user://models/ so LLamaSharp
     /// can open it as a real filesystem path.
     ///
-    /// Extraction is a one-time operation. ~1.9GB copy.
+    /// Extraction is a one-time operation. ~1 GB copy.
     /// Subsequent launches skip straight to boot.
     /// </summary>
     public partial class ModelBootScreen : CanvasLayer
     {
-        private const string BundledPath  = "res://models/qwen2.5-3b.gguf";
-        private const string ExtractedDir = "user://models/";
-        private const string ExtractedPath = "user://models/qwen2.5-3b.gguf";
+        // Qwen 2.5 1.5B Instruct, Q4_K_M — Apache 2.0, so it can ship in a commercial build
+        public  const string ModelFileName = "qwen2.5-1.5b.gguf";
+        private const string BundledPath   = "res://models/" + ModelFileName;
+        private const string ExtractedDir  = "user://models/";
+        private const string ExtractedPath = ExtractedDir + ModelFileName;
 
         private const int ChunkSize = 1024 * 1024; // 1MB per frame
 
@@ -116,6 +118,18 @@ namespace AinSoph.UI
                 GD.PrintErr($"ModelBootScreen: --model path not found: {path}");
             }
 
+            // Shipped as a loose file next to the game (e.g. a Steam depot) — use it in place,
+            // no extraction and no second copy on disk
+            var besideExe = System.IO.Path.Combine(
+                System.IO.Path.GetDirectoryName(OS.GetExecutablePath()) ?? "", "models", ModelFileName);
+            if (!OS.HasFeature("editor") && System.IO.File.Exists(besideExe))
+            {
+                _statusLabel.Text = "Loading...";
+                await ToSignal(GetTree().CreateTimer(0.3), SceneTreeTimer.SignalName.Timeout);
+                Finish(besideExe);
+                return;
+            }
+
             var realPath = ProjectSettings.GlobalizePath(ExtractedPath);
 
             // Already extracted — proceed immediately
@@ -133,12 +147,12 @@ namespace AinSoph.UI
                 GD.Print("ModelBootScreen: bundled model not found at " + BundledPath + " — starting in demo mode");
                 await StartDemo(
                     "No AI model found — starting in demo mode.\n" +
-                    "Place qwen2.5-3b.gguf in res://models/ for living NPCs.");
+                    $"Place {ModelFileName} in res://models/ for living NPCs.");
                 return;
             }
 
             // Extract
-            _statusLabel.Text = "First launch — extracting AI model (~1.9 GB)...";
+            _statusLabel.Text = "First launch — preparing the AI model (~1 GB)...";
             _bar.Visible      = true;
 
             DirAccess.MakeDirRecursiveAbsolute(

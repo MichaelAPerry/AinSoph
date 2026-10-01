@@ -236,7 +236,7 @@ Forking is not punished. It is designed for.
 | Language | C# |
 | Build | .NET SDK 8.0 |
 | LLM Runtime | llama.cpp via LLamaSharp |
-| Model | Qwen 2.5 3B ([Qwen Research License](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE) — see [Licenses](#licenses)) |
+| Model | Qwen 2.5 1.5B Instruct, Q4_K_M (~1 GB, Apache 2.0) |
 | Min Hardware | 8 GB RAM, CPU-only, x86_64 |
 | Platforms | Windows, Linux |
 
@@ -252,16 +252,16 @@ Forking is not punished. It is designed for.
 
 ### Model
 
-Download and rename to `qwen2.5-3b.gguf`:
+Download and rename to `qwen2.5-1.5b.gguf`:
 
 ```
-https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
 ```
 
 Place it at:
 
 ```
-<project root>/models/qwen2.5-3b.gguf
+<project root>/models/qwen2.5-1.5b.gguf
 ```
 
 This file is in `.gitignore`. Do not commit it.
@@ -287,6 +287,7 @@ No model? The game still runs in demo mode — see [Command-line options](#comma
 | Reap | Eat an edible item next to you, or attack a being next to you |
 | Pray | Only reaches the Council when you stand at the altar |
 | SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
+| RIB button | Appears once you have earned the rib — name and describe your spouse |
 | ROUTES button | Export / import travellers between worlds |
 
 ### Command-line options
@@ -299,6 +300,7 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--model=<path>` | Use any `.gguf` file instead of the bundled model (handy for testing with a small model). |
 | `--demo-tour` | Plays a hands-free walkthrough with captions, then quits. Uses a throwaway world, never your save. Scripted voices unless `--model=` is also given. |
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
+| `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
 
 If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
 
@@ -311,7 +313,13 @@ Everything in [`docs/demo/`](docs/demo/) is produced by the scripted tour:
 | | |
 |---|---|
 | ![World](docs/demo/03-npcs.png) | ![Primitives](docs/demo/04-primitives.png) |
-| ![Dialogue](docs/demo/05-dialogue.png) | ![Council](docs/demo/08-council.png) |
+| ![The rib](docs/demo/08-rib.png) | ![Your spouse](docs/demo/09-spouse.png) |
+
+The recorded tour uses scripted voices so it plays the same every time. With the real model (Qwen 2.5 1.5B) it looks like this:
+
+| NPC dialogue | The Council |
+|---|---|
+| ![Dialogue, Qwen 2.5 1.5B](docs/demo/qwen-1.5b-dialogue.png) | ![Council, Qwen 2.5 1.5B](docs/demo/qwen-1.5b-council.png) |
 
 Re-record it (video, GIF and screenshots) with:
 
@@ -337,7 +345,8 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/LLM/LlmRunner.cs` | llama.cpp via LLamaSharp — ChatML prompts for Qwen, one inference at a time, tolerant JSON parsing |
 | `scripts/LLM/DemoResponder.cs` | Scripted replies used when no model is loaded (demo mode) |
 | `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
-| `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character creation, routes |
+| `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
+| `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
 | `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
 
@@ -347,45 +356,31 @@ Saves live in the Godot user data folder (`~/.local/share/godot/app_userdata/Ain
 
 ## Project Status
 
-**Works now:** world generation (same world every launch for a given seed), fog of war, movement, caves, morning manna, eating, hunger/sleep death, NPCs that think, move, talk and show their state, dialogue, kill resolution, praying at the altar, Council voting with parables, skills/items granted on approval, saves, demo mode.
+**Works now:** world generation (same world every launch for a given seed), fog of war, movement, caves, morning manna, eating, hunger/sleep death, NPCs that think, move, talk and show their state, dialogue, kill resolution, praying at the altar, Council voting with parables, skills/items granted on approval, the rib (play time saved across sessions, RIB button, naming the spouse), weekly progeny with lineage, saves, demo mode.
 
 **Designed but not wired up yet:**
 
-- **Where NPCs come from.** By design NPCs come from players (the rib → spouse → progeny). The rib unlocks after 168 hours of play, but nothing in the UI creates the spouse yet, so a normal world stays empty of NPCs. Demo mode places five NPCs so the world can be seen alive.
+- **A new world starts empty.** By design NPCs come from players: the rib → spouse → progeny, and travellers over routes. Until a player has played a week, their world has no NPCs. Demo mode places five so the world can be seen alive.
 - **Animals.** Cell generation can place them, but nothing spawns them yet.
 - **NPC creations.** NPCs decide to create skills, items and rules, but don't yet take them to the Council.
 - **Rules.** Council-approved rules are recorded but not enforced.
 - **Routes** (moving NPCs between worlds) have a UI but haven't been tested end to end.
 
-The LLM path has been tested with Qwen 2.5 0.5B; the 3B model it ships with hasn't been played through yet.
+The full demo tour has been run on the shipped model, Qwen 2.5 1.5B.
 
 ---
 
 ## Building a Distributable
 
-The shipped game is a single file. The AI model (~1.9 GB) is bundled inside the PCK. On first launch the game extracts it to the OS user data directory and boots. Subsequent launches skip extraction entirely.
+Needs the Godot 4.4.1 .NET export templates and `models/qwen2.5-1.5b.gguf`. For Steam:
 
-### Steps
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/build-steam.sh
+```
 
-1. Place `qwen2.5-3b.gguf` in `models/` (see above)
-2. Open the project in Godot 4.4
-3. **Build → Build Solution**
-4. **Project → Export**
-5. Select **Windows Desktop** or **Linux/X11**
-6. Click **Export Project**
+This produces `build/steam/windows/` and `build/steam/linux/`. Each is a folder (the executable, a `data_AinSoph_*` folder with the .NET and llama.cpp libraries, and `models/`), about 1.3 GB. The plain **Windows Desktop** / **Linux/X11** presets bundle the model inside the game package and extract it on first launch instead.
 
-Output lands in `build/windows/AinSoph.exe` or `build/linux/AinSoph.x86_64`.
-
-### First Launch Behavior
-
-The game detects that the model has not been extracted yet and shows a progress screen. Extraction takes 15–30 seconds depending on disk speed. After that, the game boots normally on every subsequent launch.
-
-Extraction destination:
-
-| OS | Path |
-|----|------|
-| Windows | `%APPDATA%\Godot\app_userdata\Ain Soph\models\` |
-| Linux | `~/.local/share/godot/app_userdata/Ain Soph/models/` |
+Full details in [BUILD.md](BUILD.md); the road to release in [STEAM.md](STEAM.md).
 
 ---
 
@@ -403,6 +398,7 @@ Extraction destination:
 | [COUNCIL.md](COUNCIL.md) | The Triune Council and its prompts |
 | [TECH.md](TECH.md) | All technical decisions |
 | [BUILD.md](BUILD.md) | Full build instructions |
+| [STEAM.md](STEAM.md) | What is ready for Steam and what is left |
 | [data/ain_soph_72.json](data/ain_soph_72.json) | The 72 NPC personality seeds |
 
 ---
@@ -415,7 +411,7 @@ Extraction destination:
 
 **Runtime:** [LLamaSharp](https://github.com/SciSharp/LLamaSharp) and [llama.cpp](https://github.com/ggml-org/llama.cpp), both MIT. [Godot](https://godotengine.org), MIT.
 
-**Model:** Qwen 2.5 **3B** is released under the [Qwen Research License](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE), which restricts commercial use. It is *not* Apache 2.0 — the 1.5B and 7B sizes are. The model is not in this repository; check its license before bundling it in a build you distribute.
+**Model:** [Qwen 2.5 1.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF), Apache 2.0 — fine to bundle in a commercial build. (Ain Soph used the 3B size before; that one is under the Qwen Research License, which restricts commercial use.) The model is not in this repository.
 
 The game is free. The world can be forked. Forking is not punished. It is designed for.
 
