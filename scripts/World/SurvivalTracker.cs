@@ -16,6 +16,9 @@ public class SurvivalTracker
     public const double WarningHours  = 23.0;
     public const double SleepRequired = 8.0;
 
+    /// <summary>Hours between meals before death — 24, or longer with the Endurance gift.</summary>
+    public Func<double> HungerHours { get; set; } = () => DayHours;
+
     // --- Eat ---
     public DateTime LastAteUtc { get; private set; }
     public bool EatWarningFired { get; private set; }
@@ -131,13 +134,14 @@ public class SurvivalTracker
         // --- Eat check ---
         var hoursSinceEat = (nowUtc - LastAteUtc).TotalHours;
 
-        if (hoursSinceEat >= DayHours)
+        var hungerHours = HungerHours();
+        if (hoursSinceEat >= hungerHours)
         {
             result.DiedOfStarvation = true;
             return result;
         }
 
-        if (hoursSinceEat >= WarningHours && !EatWarningFired)
+        if (hoursSinceEat >= hungerHours - 1 && !EatWarningFired)
         {
             EatWarningFired     = true;
             result.HungerWarning = true;

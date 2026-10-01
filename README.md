@@ -10,7 +10,7 @@ Nothing phones home. No subscription. No server you don't control.
 
 *[Watch the trailer](docs/demo/trailer.mp4) (68 s, narrated) · [scripted demo tour](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
-> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 28-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 39-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
 ## Download
 
@@ -107,6 +107,8 @@ Everything beyond the six primitives is created by players and NPCs through the 
 | Substitute | Replaces a broken or absent primitive | Cart (substitutes Move) |
 | Extension | Amplifies an existing primitive | Telescope (extends See) |
 
+What each one actually changes in play is set by the effect the engine reads it as — see [What a grant does](#what-a-grant-does).
+
 ---
 
 ## NPCs
@@ -199,6 +201,31 @@ Reached through the altar, using the Pray primitive. The altar is not marked. Fi
 The Council does not speak in technical terms. It responds in homily, allegory, or story — biblical in register. When you ask for a fishing pole, it may show you a broken tree and speak of an ant. The player interprets the response. The world does not explain itself plainly.
 
 All three homilies are delivered regardless of whether the submission passes or fails. The Council does not negotiate. It does not accept appeals.
+
+### What a grant does
+
+The parables are veiled; the result is not. Above them, one plain line says what entered the world.
+
+A **rule** becomes a law. It is written into every NPC's prompt and they live by it.
+
+A **skill** or **item** becomes a *gift* its petitioner holds. The model cannot write engine code, so the engine reads every petition as one of eight effects it knows. It picks the effect whose words the petition uses most, and the Council is shown that effect when it votes:
+
+| Effect | Builds on | What it changes | Asked for with words like |
+|---|---|---|---|
+| Sight | See | You see one cell further, day and night | star, lamp, torch, telescope, scout |
+| Hearing | Hear | You are told when a predator comes within five tiles, and from which way | listen, ear, horn, warn |
+| Seafaring | Move | You can cross the sea | boat, raft, swim, sail |
+| Strength | Reap | +15 to your kill number, when you reap and when you are attacked | spear, bow, hunt, trap, shield |
+| Endurance | Reap (eating) | 36 hours between meals instead of 24 | bread, cook, forage, harvest |
+| Shelter | sleeping | Sleeping in the open is as safe as a cave | fire, tent, hut, camp, warm |
+| Mending | Reap (substitute) | A lost fight wounds you instead of killing you, once a day | heal, herb, mend, bandage |
+| Kinship | Talk | Predators pass you by half the time | tame, shepherd, calm, beast |
+
+A petition that fits none of them is granted as **lore**: it is named, held and remembered, and the game says plainly that it changes nothing you can measure. Gifts show on the action bar beside the six primitives (hover for details) and are saved with you. NPCs are told what their own gifts do, and what yours do when you speak to them. A second gift with the same effect adds nothing. A character who dies loses their gifts; laws stay.
+
+Gifts work for NPCs too. Strength, Endurance, Shelter, Mending and Kinship apply to them, and a traveller's gifts cross a route with them.
+
+Sleeping matters: a predator cannot reach anyone asleep in a cave (or sheltered by a gift), and anyone asleep in the open defends at half strength.
 
 ---
 
@@ -309,7 +336,7 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
 | `--trailer` | Plays the staged, captionless run the trailer is cut from, at 1080p, and prints `TRAILER-MARK` lines. Uses a throwaway world. |
 | `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
-| `--selftest` | Runs 28 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
+| `--selftest` | Runs 39 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
 
 If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
 
@@ -367,7 +394,7 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/Audio/Sound.cs` | Music, ambience and effects on their own buses (`assets/audio/`, made by `tools/make-sounds.py`) |
 | `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
 | `scripts/Demo/TrailerDirector.cs` | The staged `--trailer` run the trailer is cut from |
-| `scripts/Demo/SelfTest.cs` | `--selftest`: 28 automated checks of the whole loop, exit code 0/1 |
+| `scripts/Demo/SelfTest.cs` | `--selftest`: 39 automated checks of the whole loop, exit code 0/1 |
 | `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
 | `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
@@ -389,7 +416,7 @@ Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/Ai
 - **People** — four founding travellers in every new world; NPCs that think, move, talk in character, remember, and take their creations to the Council; dialogue.
 - **Animals** — 30 species from ITEMS.md; they wander, eat manna, hunt and flee; clean ones are food.
 - **The rib** — earned after a week of play, named and described by you; weekly children with lineage.
-- **The Council** — three seats, parables, 2-of-3 votes; approved skills, items and rules enter the world, and rules become laws every NPC lives by.
+- **The Council** — three seats, parables, 2-of-3 votes. Approved rules become laws every NPC lives by; approved skills and items become gifts with real effects (sight, the sea, strength, endurance, shelter, mending, kinship with beasts) for players and NPCs alike.
 - **Routes** — send travellers to another world and receive theirs.
 - **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
 

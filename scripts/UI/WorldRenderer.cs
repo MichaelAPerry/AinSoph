@@ -58,7 +58,8 @@ namespace AinSoph.UI
 
             // Sight is a circle: 3 cells by day, 1 by night (WORLD.md), with a
             // soft edge band where biomes and landmarks still show, dimmed
-            _clearRadius = WorldClock.VisionRange() * CellTiles + CellTiles / 2f;
+            var sight = WorldClock.VisionRange() + (GameRoot.Player?.Gifts.SightBonusCells ?? 0); // the Sight gift
+            _clearRadius = sight * CellTiles + CellTiles / 2f;
 
             // Items by tile, for the overlay pass
             var itemTiles = new Dictionary<Vector2I, int>();

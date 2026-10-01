@@ -88,6 +88,10 @@ public class NpcSaveData
 
     // Lineage — append only, never edited
     public List<string> Lineage { get; set; } = new();
+
+    // What the Council has granted this NPC
+    public List<AinSoph.Skills.Gift> Gifts { get; set; } = new();
+    public DateTime? LastMendedUtc { get; set; }
 }
 
 /// <summary>
@@ -122,6 +126,10 @@ public class PlayerSaveData
 
     // Skills the player has acquired
     public List<string> SkillIds { get; set; } = new();
+
+    // What the Council has granted — each one changes a rule (Gift.cs)
+    public List<AinSoph.Skills.Gift> Gifts { get; set; } = new();
+    public DateTime? LastMendedUtc { get; set; }
 }
 
 /// <summary>

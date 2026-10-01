@@ -64,7 +64,8 @@ public class RouteManager
             BrokenHear    = npc.BrokenHear,
             BrokenTalk    = npc.BrokenTalk,
             IsForeigner   = false, // they are native until they cross
-            Lineage       = npc.Lineage.ToList()
+            Lineage       = npc.Lineage.ToList(),
+            Gifts         = npc.Gifts.All.ToList(), // what a traveller was granted travels with them
         }).ToList();
 
         _save.ExportMigrationPacket(saveData, outputPath);

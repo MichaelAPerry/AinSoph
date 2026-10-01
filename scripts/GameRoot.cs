@@ -84,10 +84,11 @@ public partial class GameRoot : Node
         string Ago(double h) => h < 1 ? $"{(int)(h * 60)}m" : $"{h:F0}h";
 
         var text = Player.Survival.IsSleeping
-            ? (Player.Survival.IsInCave ? "Sleeping in a cave" : "Sleeping exposed")
+            ? (Player.Survival.IsInCave ? "Sleeping in a cave"
+               : Player.Gifts.Has(GiftEffect.Shelter) ? "Sleeping sheltered" : "Sleeping exposed")
             : $"Ate {Ago(ate)} ago · Slept {Ago(slept)} ago";
         if (Player.Survival.IsInCave && !Player.Survival.IsSleeping) text += " · In a cave";
-        _worldScene.SetSurvivalStatus(text, ate >= 20 || slept >= 20);
+        _worldScene.SetSurvivalStatus(text, ate >= Player.Gifts.HungerHours - 4 || slept >= 20);
     }
 
     // NPC pump — the queue is drained continuously, one NPC at a time
@@ -238,6 +239,7 @@ public partial class GameRoot : Node
                                     playerData.SleepStartUtc, playerData.IsInCave);
             Player.RestoreTribe(playerData.HasRib, playerData.SpouseNpcId, playerData.ProgenyIds);
             foreach (var skill in playerData.SkillIds) Player.SkillIds.Add(skill);
+            Player.Gifts.Restore(playerData.Gifts, playerData.LastMendedUtc);
             GD.Print($"GameRoot: player '{Player.Name}' loaded — {Player.AccumulatedPlayHours:F1}h played" +
                      (Player.HasSpouse ? ", has spouse" : Player.HasRib ? ", rib earned" : ""));
         }
@@ -267,6 +269,7 @@ public partial class GameRoot : Node
             var brain = new NpcBrain(npcData.Id, decan, Llm, nowUtc) { Name = npcData.Name };
             brain.SetTile(npcData.TileX, npcData.TileY);
             brain.Lineage.AddRange(npcData.Lineage);
+            brain.Gifts.Restore(npcData.Gifts, npcData.LastMendedUtc);
             brain.Memory.Write(NPC.MemorySlot.Will,    npcData.MemoryWill);
             brain.Memory.Write(NPC.MemorySlot.Thought, npcData.MemoryThought);
             brain.Memory.Write(NPC.MemorySlot.Feeling, npcData.MemoryFeeling);
@@ -341,6 +344,7 @@ public partial class GameRoot : Node
                 scene.UpsertNpc(ToSaveData(npc));
 
             _worldScene = scene;
+            scene.SetGifts(Player.Gifts.All);
             ShowAllAnimals();
             scene.RibRequested += OnRibRequested;
             AddChild(new AinSoph.UI.GameMenu());
@@ -415,6 +419,7 @@ public partial class GameRoot : Node
         {
             _animalWanderTimer = AnimalWanderSeconds;
             WanderAnimals();
+            ListenForPredators();
         }
 
         // Keep the NPC queue moving — each NPC decides itself whether it is due to think
@@ -505,7 +510,7 @@ public partial class GameRoot : Node
             TileY  = ty,
             CellId = $"{spawnCell.GridX},{spawnCell.GridY}"
         };
-        if (_worldScene != null) _worldScene.Player = Player;
+        if (_worldScene != null) { _worldScene.Player = Player; _worldScene.SetGifts(Player.Gifts.All); }
         Player.BeginSession(nowUtc);
 
         // A new character has their own week to earn their own rib
@@ -576,6 +581,7 @@ public partial class GameRoot : Node
 
             var brain = new NpcBrain(data.Id, decan, Llm, nowUtc) { Name = data.Name };
             brain.Lineage.AddRange(data.Lineage);
+            brain.Gifts.Restore(data.Gifts, data.LastMendedUtc);
             brain.Memory.Write(NPC.MemorySlot.Will,    data.MemoryWill);
             brain.Memory.Write(NPC.MemorySlot.Thought, data.MemoryThought);
             brain.Memory.Write(NPC.MemorySlot.Feeling, data.MemoryFeeling);
@@ -749,9 +755,16 @@ public partial class GameRoot : Node
     {
         if (Player != null && targetId == Player.Id)
         {
-            var kill = KillResolver.Resolve(predator.KillNumber, Player.KillNumber);
+            // Asleep in the open, you defend at half strength
+            var defence = Player.Survival.IsSleeping ? Player.KillNumber / 2 : Player.KillNumber;
+            var kill = KillResolver.Resolve(predator.KillNumber, defence);
             _worldScene?.ShowNpcSpeech(predator.AnimalId, "!");
-            if (kill.AttackerSucceeds) KillPlayer($"was killed by a {predator.Name}");
+            if (kill.AttackerSucceeds && TryMend(Player.Gifts))
+            {
+                _worldScene?.ShowWorldText($"A {predator.Name} wounds you, but {MendingName(Player.Gifts)} keeps you alive.");
+                AinSoph.Audio.Sound.Play("reap");
+            }
+            else if (kill.AttackerSucceeds) KillPlayer($"was killed by a {predator.Name}");
             else { _worldScene?.ShowWorldText($"A {predator.Name} attacks! You fight it off."); AinSoph.Audio.Sound.Play("reap"); }
             return;
         }
@@ -759,7 +772,8 @@ public partial class GameRoot : Node
         var npc = LiveNpcs.Find(n => n.NpcId == targetId);
         if (npc != null)
         {
-            if (KillResolver.Resolve(predator.KillNumber, npc.KillNumber).AttackerSucceeds) npc.Kill();
+            var defence = npc.State == NpcState.Sleeping ? npc.KillNumber / 2 : npc.KillNumber;
+            if (KillResolver.Resolve(predator.KillNumber, defence).AttackerSucceeds && !TryMend(npc.Gifts)) npc.Kill();
             return;
         }
 
@@ -787,6 +801,61 @@ public partial class GameRoot : Node
     }
 
     /// <summary>A few animals near the player take a step each beat, so the world looks alive.</summary>
+    // ── Gifts in play (see Skills/Gift.cs) ───────────────────────────────
+
+    /// <summary>Predators cannot reach a sleeper in a cave, or one sheltered by a gift such as Fire Making.</summary>
+    private static bool Sheltered(bool sleeping, bool inCave, GiftSet gifts) =>
+        sleeping && (inCave || gifts.Has(GiftEffect.Shelter));
+
+    /// <summary>Kinship with beasts: a predator passes by half the time.</summary>
+    private static bool PassedBy(GiftSet gifts) =>
+        gifts.Has(GiftEffect.Kinship) && Random.Shared.Next(2) == 0;
+
+    /// <summary>Mending turns a death into a wound, once a day. True if it did.</summary>
+    private static bool TryMend(GiftSet gifts)
+    {
+        var now = DateTime.UtcNow;
+        if (!gifts.CanMend(now)) return false;
+        gifts.LastMendedUtc = now;
+        return true;
+    }
+
+    private static string MendingName(GiftSet gifts) =>
+        gifts.All.LastOrDefault(g => g.Effect == GiftEffect.Mending)?.Name ?? "a gift";
+
+    /// <summary>Hearing: a warning when a predator comes within five tiles, once per predator per approach.</summary>
+    private readonly HashSet<string> _heardPredators = new();
+    private void ListenForPredators()
+    {
+        if (Player == null || _worldScene == null || !Player.Gifts.Has(GiftEffect.Hearing)) return;
+        foreach (var a in LiveAnimals.Where(a => a.AnimalType == AnimalType.Predator))
+        {
+            var d = Math.Max(Math.Abs(a.TileX - Player.TileX), Math.Abs(a.TileY - Player.TileY));
+            if (d <= 5 && _heardPredators.Add(a.AnimalId))
+            {
+                var dir = (a.TileY < Player.TileY ? "north" : a.TileY > Player.TileY ? "south" : "") +
+                          (a.TileX < Player.TileX ? "west" : a.TileX > Player.TileX ? "east" : "");
+                _worldScene.ShowWorldText($"You hear a {a.Name} to the {(dir.Length == 0 ? "near" : dir)}.");
+                AinSoph.Audio.Sound.Play("warning");
+            }
+            else if (d > 7) _heardPredators.Remove(a.AnimalId);
+        }
+    }
+
+    /// <summary>The Council's grant becomes a gift its petitioner holds.</summary>
+    private static Gift GrantGift(GiftSet gifts, Council.CouncilSubmission sub, string kind, out bool alreadyHeld)
+    {
+        var effect = Gifts.Classify($"{sub.Name} {sub.Description}");
+        alreadyHeld = gifts.Has(effect);
+        var gift = new Gift
+        {
+            Name = sub.Name, Description = sub.Description, Kind = kind,
+            Effect = effect, GrantedUtc = DateTime.UtcNow,
+        };
+        gifts.Add(gift);
+        return gift;
+    }
+
     private void WanderAnimals()
     {
         if (Player == null) return;
@@ -919,7 +988,7 @@ public partial class GameRoot : Node
             CurrentCell      = npc.CellId(),
             HoursSinceAte    = (nowUtc - npc.Survival.LastAteUtc).TotalHours,
             HoursSinceSlept  = (nowUtc - npc.Survival.LastSleptUtc).TotalHours,
-            IsHungry         = (nowUtc - npc.Survival.LastAteUtc).TotalHours >= SurvivalTracker.WarningHours,
+            IsHungry         = (nowUtc - npc.Survival.LastAteUtc).TotalHours >= npc.Gifts.HungerHours - 1,
             IsExhausted      = (nowUtc - npc.Survival.LastSleptUtc).TotalHours >= SurvivalTracker.WarningHours,
             IsInCave         = npc.Survival.IsInCave,
             VisibleEntities  = entities,
@@ -927,7 +996,8 @@ public partial class GameRoot : Node
         };
     }
 
-    private AnimalSituation BuildAnimalSituation(AnimalBrain animal)
+    /// <summary>What an animal notices this hour — public so the self-test can ask who a predator would strike.</summary>
+    public AnimalSituation BuildAnimalSituation(AnimalBrain animal)
     {
         static int Dist(int ax, int ay, int bx, int by) => Math.Max(Math.Abs(ax - bx), Math.Abs(ay - by));
 
@@ -936,9 +1006,13 @@ public partial class GameRoot : Node
         if (animal.AnimalType == AnimalType.Predator)
         {
             if (Player != null && !string.IsNullOrEmpty(Player.Name) &&
-                Dist(Player.TileX, Player.TileY, animal.TileX, animal.TileY) <= 1)
+                Dist(Player.TileX, Player.TileY, animal.TileX, animal.TileY) <= 1 &&
+                !Sheltered(Player.Survival.IsSleeping, Player.Survival.IsInCave, Player.Gifts) &&
+                !PassedBy(Player.Gifts))
                 target = Player.Id;
-            target ??= LiveNpcs.FirstOrDefault(n => Dist(n.TileX, n.TileY, animal.TileX, animal.TileY) <= 1)?.NpcId;
+            target ??= LiveNpcs.FirstOrDefault(n => Dist(n.TileX, n.TileY, animal.TileX, animal.TileY) <= 1 &&
+                                                    !Sheltered(n.State == NpcState.Sleeping, n.Survival.IsInCave, n.Gifts) &&
+                                                    !PassedBy(n.Gifts))?.NpcId;
             target ??= LiveAnimals.FirstOrDefault(a => a.AnimalType != AnimalType.Predator &&
                                                        Dist(a.TileX, a.TileY, animal.TileX, animal.TileY) <= 1)?.AnimalId;
         }
@@ -991,6 +1065,8 @@ public partial class GameRoot : Node
             IsInCave     = Player.Survival.IsInCave,
             SleepStartUtc = Player.Survival.SleepStartUtc,
             SkillIds     = Player.SkillIds.ToList(),
+            Gifts        = Player.Gifts.All.ToList(),
+            LastMendedUtc = Player.Gifts.LastMendedUtc,
 
             // Rib — play time must survive restarts or a week of play never adds up
             AccumulatedPlayHours = Player.TotalPlayHours,
@@ -1199,14 +1275,18 @@ public partial class GameRoot : Node
         switch (sub.Type.ToLowerInvariant())
         {
             case "item":
+                // Made and shown beside its maker; the maker holds what it does
                 var (tx, ty) = FindFreeTileNear(npc.TileX, npc.TileY);
                 Items?.Spawn(name: sub.Name, type: "crafted", tileX: tx, tileY: ty, description: sub.Description);
+                var made = GrantGift(npc.Gifts, sub, "item", out _);
+                npc.Memory.Write(MemorySlot.Action, $"I made {made.Label}.");
                 break;
             case "rule":
                 AddLaw(sub.Name, sub.Description, npc.NpcId);
                 break;
             default: // skill
-                npc.Memory.Write(MemorySlot.Action, $"The Council granted me a new skill: {sub.Name}.");
+                var learned = GrantGift(npc.Gifts, sub, "skill", out _);
+                npc.Memory.Write(MemorySlot.Action, $"The Council granted me a new skill: {learned.Label}.");
                 break;
         }
 
@@ -1343,6 +1423,8 @@ public partial class GameRoot : Node
         BrokenHear    = npc.BrokenHear,
         BrokenTalk    = npc.BrokenTalk,
         IsForeigner   = npc.IsForeigner,
+        Gifts         = npc.Gifts.All.ToList(),
+        LastMendedUtc = npc.Gifts.LastMendedUtc,
     };
 
     /// <summary>Someone — the player or an NPC — is standing on this tile.</summary>
@@ -1493,7 +1575,12 @@ public partial class GameRoot : Node
             AinSoph.Audio.Sound.Play("reap");
             GD.Print($"GameRoot: reap {npc.Name} — {kill.AttackerRoll}/{kill.AttackerKillNum} " +
                      $"vs {kill.DefenderRoll}/{kill.DefenderKillNum}");
-            if (kill.AttackerSucceeds)
+            if (kill.AttackerSucceeds && TryMend(npc.Gifts))
+            {
+                _worldScene.ShowWorldText($"You wound {npc.Name}, but {MendingName(npc.Gifts)} keeps them alive.");
+                _worldScene.ShowNpcSpeech(npc.NpcId, "!");
+            }
+            else if (kill.AttackerSucceeds)
             {
                 _worldScene.ShowWorldText($"You reap {npc.Name}. The body remains.");
                 npc.Kill();
@@ -1560,7 +1647,7 @@ public partial class GameRoot : Node
         _worldScene.SetDialogueSpeech("…");
         try
         {
-            var reply = await npc.RespondToDialogueAsync(text, BuildNpcSituation(npc), _cts.Token);
+            var reply = await npc.RespondToDialogueAsync(text, BuildNpcSituation(npc), _cts.Token, Player?.Gifts.Summary() ?? "");
             reply = reply.Trim();
             if (reply.Length > 1 && reply[0] == '"' && reply[^1] == '"') reply = reply[1..^1];
             if (reply.Length == 0) reply = "…";
@@ -1615,8 +1702,15 @@ public partial class GameRoot : Node
             verdict = await Council.SubmitAsync(oblique, _cts.Token);
         }
 
-        // Deliver all three homiilies to the player regardless of outcome
+        // What the verdict does, said plainly first — then all three parables, whatever the outcome
         var sb = new System.Text.StringBuilder();
+        if (verdict.Approved && verdict.Submission is { } granted)
+            sb.AppendLine(granted.Type.Equals("rule", StringComparison.OrdinalIgnoreCase)
+                ? $"» A new law enters the world: {granted.Name}. Every NPC will live by it."
+                : $"» {Gifts.Announce(new Gift { Name = granted.Name, Effect = Gifts.Classify($"{granted.Name} {granted.Description}") }, false)}");
+        else if (verdict.Responses.Count > 0)
+            sb.AppendLine("» Nothing enters the world.");
+        sb.AppendLine();
         foreach (var response in verdict.Responses)
         {
             sb.AppendLine($"[ {response.Seat.ToUpper()} — {response.Vote.ToUpper()} ]");
@@ -1630,40 +1724,34 @@ public partial class GameRoot : Node
 
         // Apply approved content to the world
         if (verdict.Approved && verdict.Submission != null)
+            ApplyPlayerGrant(verdict.Submission);
+    }
+
+    /// <summary>What the Council approved for the player enters the world: a gift held, or a law.</summary>
+    public void ApplyPlayerGrant(Council.CouncilSubmission sub)
+    {
+        if (Player == null || _worldScene == null) return;
+        GD.Print($"GameRoot: Council approved '{sub.Name}' ({sub.Type}) for {Player.Name}");
+
+        switch (sub.Type.ToLower())
         {
-            var sub = verdict.Submission;
-            GD.Print($"GameRoot: Council approved '{sub.Name}' ({sub.Type}) for {Player.Name}");
-
-            switch (sub.Type.ToLower())
-            {
-                case "skill":
+            case "skill":
+            case "item":
+                // A skill is learned, an item is carried — either way it is held, and its effect applies
+                if (sub.Type.Equals("skill", StringComparison.OrdinalIgnoreCase))
                     Player.SkillIds.Add(sub.Name.ToLower().Replace(" ", "_"));
-                    // Refresh HUD — custom skills show as unlocked slots
-                    // For now, primitive SkillType slots are fixed; custom skills append
-                    _worldScene.ShowWorldText($"The Council grants: {sub.Name}");
-                    SaveAll();
-                    break;
+                var gift = GrantGift(Player.Gifts, sub, sub.Type.ToLower(), out var alreadyHeld);
+                _worldScene.ShowWorldText(Gifts.Announce(gift, alreadyHeld));
+                _worldScene.SetGifts(Player.Gifts.All);
+                _worldScene.RefreshMap(); // Sight changes what you see
+                SaveAll();
+                break;
 
-                case "item":
-                    // Spawn the item near the player at the altar tile
-                    Items?.Spawn(
-                        name:        sub.Name,
-                        type:        "crafted",
-                        tileX:       Player.TileX,
-                        tileY:       Player.TileY,
-                        edible:      sub.Properties.ContainsKey("edible"),
-                        description: sub.Description
-                    );
-                    _worldScene.ShowWorldText($"The Council grants: {sub.Name}");
-                    SaveAll();
-                    break;
-
-                case "rule":
-                    AddLaw(sub.Name, sub.Description, Player.Id);
-                    _worldScene.ShowWorldText($"The Council accepts the rule: {sub.Name}");
-                    SaveAll();
-                    break;
-            }
+            case "rule":
+                AddLaw(sub.Name, sub.Description, Player.Id);
+                _worldScene.ShowWorldText($"The Council accepts the rule: {sub.Name}");
+                SaveAll();
+                break;
         }
     }
 

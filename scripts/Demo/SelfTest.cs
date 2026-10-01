@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AinSoph.Council;
 using AinSoph.LLM;
 using AinSoph.NPC;
+using AinSoph.Skills;
 using AinSoph.UI;
 using AinSoph.World;
 using Godot;
@@ -134,10 +135,69 @@ namespace AinSoph.Demo
             Check("NPC prompts carry the content rule",
                 NpcPromptBuilder.BuildSystemPrompt(GameRoot.LiveNpcs[0].Decan).Contains(ContentFilter.PromptRule));
 
+            // ── Gifts: what the Council grants changes the rules ─────────
+            var named = CouncilSubmissionParser.NameOf("Grant me a skill: Fire Making - to keep my family warm.");
+            Check("petitions are named plainly", named == "Fire Making", named);
+            Check("petitions are read as effects",
+                Gifts.Classify("Fire Making - to keep my family warm") == GiftEffect.Shelter &&
+                Gifts.Classify("Star Reading - to find my way by the night sky") == GiftEffect.Sight &&
+                Gifts.Classify("a spear for hunting") == GiftEffect.Strength &&
+                Gifts.Classify("a song of the old days") == GiftEffect.Lore);
+
+            var now = System.DateTime.UtcNow;
+            Check("a lion strikes a player asleep in the open", StrikesSleepingPlayer(root));
+
+            var kill0 = player.KillNumber;
+            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Spear Craft", Description = "a spear for hunting" });
+            Check("Strength raises the kill number", player.KillNumber == kill0 + Gifts.StrengthBonus, $"{kill0} → {player.KillNumber}");
+
+            root.ApplyPlayerGrant(new CouncilSubmission { Type = "item", Name = "Lantern", Description = "a lantern to see by at night" });
+            Check("Sight widens what you see", player.Gifts.SightBonusCells == 1);
+
+            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Bread Baking", Description = "bake bread to endure hunger" });
+            var fed30h = new SurvivalTracker(now.AddHours(-30)) { HungerHours = () => player.Gifts.HungerHours };
+            var plain30h = new SurvivalTracker(now.AddHours(-30));
+            fed30h.RecordEat(now.AddHours(-30)); plain30h.RecordEat(now.AddHours(-30));
+            Check("Endurance lengthens the hunger window", !fed30h.Tick(now).DiedOfStarvation && plain30h.Tick(now).DiedOfStarvation);
+
+            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Fire Making", Description = "fire to keep my family warm" });
+            Check("Shelter keeps a sleeper in the open safe", !StrikesSleepingPlayer(root));
+
+            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Healing", Description = "herbs to mend wounds" });
+            Check("Mending is ready once a day", player.Gifts.CanMend(now) &&
+                (player.Gifts.LastMendedUtc = now) == now && !player.Gifts.CanMend(now.AddHours(1)) && player.Gifts.CanMend(now.AddHours(25)));
+            player.Gifts.LastMendedUtc = null;
+
+            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Old Songs", Description = "the songs of the old days" });
+            Check("a petition that fits no effect is kept as lore", player.Gifts.All.Last().Effect == GiftEffect.Lore);
+
+            root.SaveNow();
+            using (var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "player.json"))))
+                Check("gifts are saved", doc.RootElement.GetProperty("gifts").GetArrayLength() == player.Gifts.All.Count &&
+                    doc.RootElement.GetProperty("gifts")[0].GetProperty("effect").GetString() == "Strength");
+
+            var gifted = GameRoot.LiveNpcs.First(n => !n.IsForeigner);
+            gifted.Gifts.Add(new Gift { Name = "Net Weaving", Effect = GiftEffect.Endurance });
+            Check("an NPC's gifts reach its prompt", NpcPromptBuilder.BuildSystemPrompt(gifted.Decan,
+                gifts: gifted.Gifts.Summary()).Contains("Net Weaving"));
+
             // ── Talk ──────────────────────────────────────────────────────
             var npc = GameRoot.LiveNpcs.First(n => !n.BrokenTalk);
             var reply = await npc.RespondToDialogueAsync("Where can I find shelter tonight?", new SituationContext());
             Check("an NPC answers in dialogue", !string.IsNullOrWhiteSpace(reply), reply.Length > 60 ? reply[..60] : reply);
+        }
+
+        /// <summary>Put a lion beside the sleeping player and ask whether it would strike.</summary>
+        private static bool StrikesSleepingPlayer(GameRoot root)
+        {
+            var p = GameRoot.Player!;
+            p.Survival.BeginSleep(System.DateTime.UtcNow, inCave: false);
+            var lion = root.StageAnimal("lion", p.TileX + 1, p.TileY)!;
+            var strikes = root.BuildAnimalSituation(lion).NearbyEntityId == p.Id;
+            GameRoot.LiveAnimals.Remove(lion);
+            GameRoot.Scene?.RemoveNpc(lion.AnimalId);
+            p.Survival.EndSleep(System.DateTime.UtcNow);
+            return strikes;
         }
 
         private static Tile TileAt(int x, int y)

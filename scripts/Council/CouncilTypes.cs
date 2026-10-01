@@ -13,6 +13,9 @@ public class CouncilSubmission
     public List<string> BaseSkills { get; set; } = new();
     public SubmissionCost Cost { get; set; } = new();
     public Dictionary<string, object> Properties { get; set; } = new();
+
+    /// <summary>What it would do in the world, in plain words — so the seats judge the real thing.</summary>
+    public string Effect { get; set; } = string.Empty;
 }
 
 public class SubmissionCost

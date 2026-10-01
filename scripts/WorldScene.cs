@@ -274,7 +274,8 @@ namespace AinSoph
             var destTile = TileAt(newTile);
             var hereTile = TileAt(_playerTile);
             bool stranded = hereTile != null && !BiomeData.Get(hereTile.Biome).Passable;
-            if (destTile != null && !BiomeData.Get(destTile.Biome).Passable && !stranded)
+            bool seafarer = Player?.Gifts.Has(Skills.GiftEffect.Seafaring) == true;
+            if (destTile != null && !BiomeData.Get(destTile.Biome).Passable && !stranded && !seafarer)
             {
                 ShowWorldText("The sea will not carry you.");
                 return;
@@ -348,6 +349,7 @@ namespace AinSoph
 
         public void Step(Vector2I dir) => ApplyPlayerMove(_playerTile + dir);
         public void SetRibAvailable(bool available) => _hud.SetRibAvailable(available);
+        public void SetGifts(System.Collections.Generic.IReadOnlyList<Skills.Gift> gifts) => _hud.SetGifts(gifts);
         public void SetSurvivalStatus(string text, bool urgent) => _hud.SetStatus(text, urgent);
         public bool DialogueOpen => _dialogue.Visible;
         public string DialogueSpeech => _dialogue.SpeechText;

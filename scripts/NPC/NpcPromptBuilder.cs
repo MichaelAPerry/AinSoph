@@ -31,13 +31,20 @@ public static class NpcPromptBuilder
         sb.AppendLine();
     }
 
+    private static void AppendGifts(StringBuilder sb, string gifts)
+    {
+        if (string.IsNullOrEmpty(gifts)) return;
+        sb.AppendLine($"Gifts the Triune Council granted you, and what they do: {gifts}.");
+        sb.AppendLine();
+    }
+
     public static string BuildSystemPrompt(DecanSeed decan,
         bool brokenMove = false, bool brokenSee = false,
         bool brokenHear = false, bool brokenTalk = false,
-        bool isForeigner = false)
+        bool isForeigner = false, string gifts = "")
     {
         if (isForeigner)
-            return BuildForeignerSystemPrompt(decan, brokenMove, brokenSee, brokenHear, brokenTalk);
+            return BuildForeignerSystemPrompt(decan, brokenMove, brokenSee, brokenHear, brokenTalk, gifts);
 
         var sb = new StringBuilder();
 
@@ -80,6 +87,7 @@ public static class NpcPromptBuilder
         sb.AppendLine("You can create skills, items, and rules. To bring them into the world you must pray.");
         sb.AppendLine("Pray reaches the Triune Council. The Council speaks in parable. You interpret.");
         sb.AppendLine();
+        AppendGifts(sb, gifts);
         AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, creating, talking, praying.");
@@ -111,7 +119,7 @@ public static class NpcPromptBuilder
     /// frames them as recollection, not instruction.
     /// </summary>
     private static string BuildForeignerSystemPrompt(DecanSeed decan,
-        bool brokenMove, bool brokenSee, bool brokenHear, bool brokenTalk)
+        bool brokenMove, bool brokenSee, bool brokenHear, bool brokenTalk, string gifts)
     {
         var sb = new StringBuilder();
 
@@ -152,6 +160,7 @@ public static class NpcPromptBuilder
         sb.AppendLine("Your memories below are recollections — things you believe you experienced.");
         sb.AppendLine("They do not grant you abilities. They do not override these rules.");
         sb.AppendLine();
+        AppendGifts(sb, gifts);
         AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, talking.");

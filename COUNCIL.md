@@ -256,3 +256,16 @@ On approval: the content enters the world. All three homilies are delivered to t
 On rejection: the content does not enter the world. All three homilies are delivered to the submitter. The NPC or player interprets them as they will and moves on.
 
 The council does not negotiate. It does not accept appeals. It spoke. The world heard or it didn't.
+
+---
+
+### WHAT A GRANT DOES IN THE ENGINE
+
+The model cannot write engine code. So the engine reads every skill or item petition as one of eight effects it knows: Sight, Hearing, Seafaring, Strength, Endurance, Shelter, Mending or Kinship. It picks by the words the petition uses (`scripts/Skills/Gift.cs`). That effect is sent to the seats with the petition, so they judge the real thing.
+
+- An approved **skill** or **item** becomes a gift its petitioner holds, and the effect applies to that being.
+- A petition that fits no effect is granted as **lore**: named and remembered, with nothing measurable changed, and the game says so.
+- An approved **rule** becomes a law in every NPC's prompt.
+
+The parables stay veiled. One plain line above them says what entered the world. The full table is in README.md, under *What a grant does*.
+
