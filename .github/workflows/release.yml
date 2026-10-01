@@ -2,12 +2,23 @@ name: Release
 
 # Builds the Windows installer and the Linux build, with the model, and
 # publishes them as a GitHub Release. Run it by pushing a version tag
-# (git tag v0.1.0 && git push origin v0.1.0) or from the Actions tab.
+# (git tag v0.1.0 && git push origin v0.1.0), or from the Actions tab
+# ("Run workflow", give the tag) — then the release creates the tag itself
+# on the commit it built.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to create and release, e.g. v0.1.0"
+        required: true
+        default: "v0.1.0"
+      draft:
+        description: "Publish as a draft (review before it goes public)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -71,12 +82,15 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Ain Soph ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag }}
+          draft: ${{ inputs.draft == true }}
           body_path: docs/release-notes.md
           files: |
             build/AinSoph-Setup-*.exe
             build/AinSoph-*-linux-x86_64.tar.gz
 
       - name: Upload to itch.io
-        if: ${{ env.BUTLER_API_KEY != '' && env.ITCH_GAME != '' && github.event_name == 'push' }}
+        if: ${{ env.BUTLER_API_KEY != '' && env.ITCH_GAME != '' && inputs.draft != true }}
         run: tools/upload-itch.sh
