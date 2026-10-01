@@ -68,7 +68,10 @@ namespace AinSoph.UI
             if (ev is InputEventKey key && key.Pressed)
             {
                 if (key.Keycode == Key.Escape)
+                {
                     Close();
+                    GetViewport().SetInputAsHandled(); // don't also open the Esc menu
+                }
                 else if (key.Keycode == Key.Enter || key.Keycode == Key.KpEnter)
                     SubmitInput();
             }

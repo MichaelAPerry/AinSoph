@@ -30,6 +30,9 @@ public class RouteManager
     /// to a migration packet file. Removes them from the local world.
     /// Returns the number of migrants exported.
     /// </summary>
+    /// <summary>Raised for each NPC that leaves, so the engine can take them off the map and out of the queue.</summary>
+    public event Action<NpcBrain>? OnEmigrated;
+
     public int ExportMigrants(string outputPath)
     {
         if (_worldNpcs.Count == 0)
@@ -70,6 +73,7 @@ public class RouteManager
         {
             _worldNpcs.Remove(npc);
             _save.DeleteNpc(npc.NpcId); // remove from disk so they don't respawn
+            OnEmigrated?.Invoke(npc);
         }
 
         GD.Print($"RouteManager: {pool.Count} exported — {_worldNpcs.Count} remain");
@@ -104,7 +108,7 @@ public class RouteManager
             // Spawn near the border — caller passes a tile near the edge
             npc.TileX  = spawnTileX + new Random().Next(-2, 3);
             npc.TileY  = spawnTileY + new Random().Next(-2, 3);
-            npc.CellId = $"{npc.TileX / 8},{npc.TileY / 8}";
+            npc.CellId = $"{(npc.TileX < 0 ? (npc.TileX - 7) / 8 : npc.TileX / 8)},{(npc.TileY < 0 ? (npc.TileY - 7) / 8 : npc.TileY / 8)}";
 
             // Reset survival clock — they arrive hungry and tired after crossing
             npc.LastAteUtc   = DateTime.UtcNow - TimeSpan.FromHours(20);

@@ -80,6 +80,15 @@ namespace AinSoph.UI
             _statusLabel.Size     = new Vector2(vp.X, 48);
             AddChild(_statusLabel);
 
+            var version = new Label();
+            version.Text = $"v{GameSettings.Version}";
+            version.HorizontalAlignment = HorizontalAlignment.Right;
+            version.AddThemeFontSizeOverride("font_size", 11);
+            version.AddThemeColorOverride("font_color", new Color(0.35f, 0.34f, 0.30f));
+            version.Position = new Vector2(vp.X - 216, vp.Y - 28);
+            version.Size     = new Vector2(200, 18);
+            AddChild(version);
+
             _bar = new ProgressBar();
             _bar.MinValue  = 0;
             _bar.MaxValue  = 100;
@@ -97,8 +106,10 @@ namespace AinSoph.UI
         {
             // --demo forces scripted NPCs/Council; --model=<path> points at any .gguf
             var args = OS.GetCmdlineUserArgs().Concat(OS.GetCmdlineArgs()).ToArray();
-            bool tourWithoutModel = args.Contains("--demo-tour") && !args.Any(a => a.StartsWith("--model="));
-            if (args.Contains("--demo") || tourWithoutModel)
+            // The tour and the self-test use scripted voices unless a model is named
+            bool scriptedRun = (args.Contains("--demo-tour") || args.Contains("--selftest")) &&
+                               !args.Any(a => a.StartsWith("--model="));
+            if (args.Contains("--demo") || scriptedRun)
             {
                 await StartDemo("Demo mode — scripted voices, no AI model.");
                 return;

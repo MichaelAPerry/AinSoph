@@ -60,7 +60,7 @@ public class TribuneCouncil
 
         foreach (var prompt in SeatPrompts)
         {
-            var raw = await _llm.InferAsync(prompt, petition, maxTokens: 256,
+            var raw = await _llm.InferAsync(prompt + "\n\n" + ContentFilter.PromptRule, petition, maxTokens: 256,
                 cancellationToken: cancellationToken);
 
             var response = ParseSeatResponse(raw);
@@ -88,7 +88,10 @@ public class TribuneCouncil
                 var r = JsonSerializer.Deserialize<SeatResponse>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                 if (r is not null && !string.IsNullOrWhiteSpace(r.Vote))
+                {
+                    r.Homily = ContentFilter.Clean(r.Homily);
                     return r;
+                }
             }
             catch (JsonException ex)
             {

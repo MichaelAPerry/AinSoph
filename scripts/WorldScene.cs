@@ -36,6 +36,9 @@ namespace AinSoph
         /// <summary>True while a full-screen overlay (e.g. character creation) owns the keyboard.</summary>
         public bool             InputLocked { get; set; }
 
+        /// <summary>The Esc menu is open — the world keeps running but the player doesn't move.</summary>
+        public bool             MenuOpen    { get; set; }
+
         /// <summary>The player pressed RIB.</summary>
         public event System.Action? RibRequested;
 
@@ -153,7 +156,10 @@ namespace AinSoph
         public void ShowNpcSpeech(string npcId, string text)
         {
             if (_npcNodes.TryGetValue(npcId, out var node))
+            {
                 node.ShowSpeech(text);
+                if (node.Visible) AinSoph.Audio.Sound.Play("speech", 0.15f);
+            }
         }
 
         /// <summary>Redraw the map around the player (e.g. after manna spawns or an item is eaten).</summary>
@@ -200,7 +206,7 @@ namespace AinSoph
 
         private void HandleMovementInput()
         {
-            if (_dialogue.Visible || InputLocked || _moveCooldown > 0f) return;
+            if (_dialogue.Visible || InputLocked || MenuOpen || _moveCooldown > 0f) return;
 
             var dir = Vector2I.Zero;
             if (Input.IsKeyPressed(Key.D) || Input.IsActionPressed("ui_right")) dir.X =  1;
@@ -217,7 +223,7 @@ namespace AinSoph
 
         public override void _UnhandledInput(InputEvent ev)
         {
-            if (_dialogue.Visible || InputLocked) return;
+            if (_dialogue.Visible || InputLocked || MenuOpen) return;
             if (ev is not InputEventMouseButton mb || !mb.Pressed) return;
 
             var worldPos   = GetGlobalMousePosition();
@@ -283,6 +289,7 @@ namespace AinSoph
             }
 
             MovePlayerTo(newTile);
+            AinSoph.Audio.Sound.Play("step", 0.12f);
 
             // Cave entry — if landing on a cave tile
             if (Player != null && TileAt(_playerTile)?.HasCave == true)
@@ -342,6 +349,7 @@ namespace AinSoph
 
         public void Step(Vector2I dir) => ApplyPlayerMove(_playerTile + dir);
         public void SetRibAvailable(bool available) => _hud.SetRibAvailable(available);
+        public void SetSurvivalStatus(string text, bool urgent) => _hud.SetStatus(text, urgent);
         public bool DialogueOpen => _dialogue.Visible;
         public string DialogueSpeech => _dialogue.SpeechText;
         public void TypeDialogue(string text)   => _dialogue.SetInputText(text);

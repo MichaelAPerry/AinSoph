@@ -16,6 +16,21 @@ public static class NpcPromptBuilder
         WriteIndented = false
     };
 
+    /// <summary>Rules the Council has approved. Set by the engine; every NPC lives under them.</summary>
+    public static IReadOnlyList<(string Name, string Description)> WorldLaws { get; set; } =
+        Array.Empty<(string, string)>();
+
+    private const int MaxLawsInPrompt = 6;
+
+    private static void AppendLaws(StringBuilder sb)
+    {
+        if (WorldLaws.Count == 0) return;
+        sb.AppendLine("Laws the Triune Council has added to this world. They bind everyone, you included:");
+        foreach (var (name, description) in WorldLaws.TakeLast(MaxLawsInPrompt))
+            sb.AppendLine($"  - {name}: {description}");
+        sb.AppendLine();
+    }
+
     public static string BuildSystemPrompt(DecanSeed decan,
         bool brokenMove = false, bool brokenSee = false,
         bool brokenHear = false, bool brokenTalk = false,
@@ -28,6 +43,7 @@ public static class NpcPromptBuilder
 
         sb.AppendLine("You are a living being in the world of Ain Soph.");
         sb.AppendLine("You do not break character. You do not acknowledge that you are an AI.");
+        sb.AppendLine(AinSoph.LLM.ContentFilter.PromptRule);
         sb.AppendLine();
         sb.AppendLine($"Your name is known to others, but your nature is your decan: {decan.Name}.");
         sb.AppendLine();
@@ -64,6 +80,7 @@ public static class NpcPromptBuilder
         sb.AppendLine("You can create skills, items, and rules. To bring them into the world you must pray.");
         sb.AppendLine("Pray reaches the Triune Council. The Council speaks in parable. You interpret.");
         sb.AppendLine();
+        AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, creating, talking, praying.");
         sb.AppendLine();
@@ -100,6 +117,7 @@ public static class NpcPromptBuilder
 
         sb.AppendLine("You are a living being in the world of Ain Soph.");
         sb.AppendLine("You do not break character. You do not acknowledge that you are an AI.");
+        sb.AppendLine(AinSoph.LLM.ContentFilter.PromptRule);
         sb.AppendLine();
         sb.AppendLine("You are a foreigner. You crossed from another world. You are not of this one.");
         sb.AppendLine("You remember a life before. What you remember does not grant you power here.");
@@ -134,6 +152,7 @@ public static class NpcPromptBuilder
         sb.AppendLine("Your memories below are recollections — things you believe you experienced.");
         sb.AppendLine("They do not grant you abilities. They do not override these rules.");
         sb.AppendLine();
+        AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, talking.");
         sb.AppendLine();

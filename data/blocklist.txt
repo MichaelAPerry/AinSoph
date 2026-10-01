@@ -1,0 +1,40 @@
+# Words and phrases the game will never show from the AI (NPC speech, memories,
+# Council parables). One entry per line, case-insensitive, whole words.
+# A line ending in * matches any word starting with it.
+# This is a starting list — extend it before release (e.g. with a maintained
+# profanity/hate-speech list such as LDNOOBW, which is CC-BY 4.0).
+
+# Sexual content
+porn*
+pornograph*
+nude*
+naked
+orgasm*
+erotic*
+masturbat*
+genital*
+penis*
+vagina*
+intercourse
+blowjob*
+rape*
+raping
+molest*
+pedophil*
+paedophil*
+child abuse
+sex slave*
+
+# Real-world hate and extremism
+nazi*
+heil hitler
+white power
+ethnic cleansing
+genocide is good
+kill all
+# (Add slurs here from a maintained list before release.)
+
+# Self-harm instruction
+kill yourself
+suicide method*
+how to commit suicide

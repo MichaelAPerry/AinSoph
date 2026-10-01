@@ -276,7 +276,7 @@ public class NpcBrain
         // The system prompt trains the NPC to answer in JSON; if it does, take what it said aloud
         if (reply.TrimStart().StartsWith("{") && ParseDecision(reply) is { } d)
             return string.IsNullOrWhiteSpace(d.Speech) ? "…" : d.Speech;
-        return reply;
+        return ContentFilter.Clean(reply);
     }
 
     private string _pendingCreationIntent = string.Empty;
@@ -289,7 +289,7 @@ public class NpcBrain
     {
         try
         {
-            return JsonSerializer.Deserialize<NpcDecision>(LlmRunner.ExtractJson(raw), _jsonOpts);
+            return Sanitize(JsonSerializer.Deserialize<NpcDecision>(LlmRunner.ExtractJson(raw), _jsonOpts));
         }
         catch (JsonException)
         {
@@ -298,11 +298,27 @@ public class NpcBrain
             if (!state.Success) return null;
             var speech = Regex.Match(raw, "\"speech\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)");
             var said   = speech.Success ? speech.Groups[1].Value : string.Empty;
-            return new NpcDecision
+            return Sanitize(new NpcDecision
             {
                 State  = state.Groups[1].Value,
                 Speech = said.Length > 160 ? said[..160] + "…" : said,
-            };
+            });
         }
+    }
+
+    /// <summary>Filter everything the NPC would say aloud or remember.</summary>
+    private static NpcDecision? Sanitize(NpcDecision? d)
+    {
+        if (d is null) return null;
+        d.Speech         = ContentFilter.Clean(d.Speech);
+        d.CreationIntent = ContentFilter.Clean(d.CreationIntent);
+        if (d.MemoryUpdates is { } m)
+        {
+            if (!ContentFilter.IsClean(m.Will))    m.Will    = null;
+            if (!ContentFilter.IsClean(m.Thought)) m.Thought = null;
+            if (!ContentFilter.IsClean(m.Feeling)) m.Feeling = null;
+            if (!ContentFilter.IsClean(m.Action))  m.Action  = null;
+        }
+        return d;
     }
 }

@@ -9,6 +9,8 @@ NPCs come from players. Not from the server.
 
 The server does not generate NPCs independently.
 
+The one exception is the founding: every new world begins with four **founding travellers** — migrants who crossed into it before the player arrived. They are foreigners under the same rules as any traveller who arrives over a route: they live, talk, eat, sleep and remember, but cannot create, cannot pray, and cannot kill. They exist so a new world is not empty for its first week. The player's own tribe still comes only from the rib.
+
 ---
 
 ### THE LOCAL LLM

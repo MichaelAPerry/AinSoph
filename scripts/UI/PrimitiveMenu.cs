@@ -157,6 +157,7 @@ namespace AinSoph.UI
             label.Size     = new Vector2(BtnSize, 14);
             btn.AddChild(label);
 
+            btn.Pressed += () => AinSoph.Audio.Sound.Play("click");
             btn.Pressed += () =>
             {
                 var chosen = skill;

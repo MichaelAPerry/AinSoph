@@ -10,7 +10,7 @@ Nothing phones home. No subscription. No server you don't control.
 
 *Scripted demo tour — [video](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
-> **Status: early playable prototype.** The world, survival, dialogue and the Council run end to end. Several designed systems are not wired up yet — see [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 28-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
 ---
 
@@ -289,6 +289,7 @@ No model? The game still runs in demo mode — see [Command-line options](#comma
 | SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
 | RIB button | Appears once you have earned the rib — name and describe your spouse |
 | ROUTES button | Export / import travellers between worlds |
+| Esc | Menu — fullscreen, music / ambience / effects volume, hints, controls, quit. The world does not pause. |
 
 ### Command-line options
 
@@ -301,6 +302,7 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--demo-tour` | Plays a hands-free walkthrough with captions, then quits. Uses a throwaway world, never your save. Scripted voices unless `--model=` is also given. |
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
 | `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
+| `--selftest` | Runs 28 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
 
 If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
 
@@ -344,30 +346,35 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/Council/` | The Triune Council: three seats, three LLM calls, 2-of-3 vote |
 | `scripts/LLM/LlmRunner.cs` | llama.cpp via LLamaSharp — ChatML prompts for Qwen, one inference at a time, tolerant JSON parsing |
 | `scripts/LLM/DemoResponder.cs` | Scripted replies used when no model is loaded (demo mode) |
+| `scripts/LLM/ContentFilter.cs` | Prompt rule + word-list filter (`data/blocklist.txt`) on everything the AI says |
+| `scripts/Audio/Sound.cs` | Music, ambience and effects on their own buses (`assets/audio/`, made by `tools/make-sounds.py`) |
 | `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
+| `scripts/Demo/SelfTest.cs` | `--selftest`: 28 automated checks of the whole loop, exit code 0/1 |
 | `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
-| `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes |
+| `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
 | `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
 | `tools/build-steam.sh` | Steam-ready Windows and Linux folders in `build/steam/` |
 | `tools/package-windows.sh` | Windows installer `build/AinSoph-Setup-<version>.exe` (NSIS script in `tools/installer/`) |
+| `.github/workflows/` | CI (build + self-test on every push) and Release (installer + Linux build on a `v*` tag) |
 
-Saves live in the Godot user data folder (`~/.local/share/godot/app_userdata/Ain Soph/saves/world` on Linux, `%APPDATA%\Godot\app_userdata\Ain Soph\saves\world` on Windows). Delete that folder to start a new world.
+Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/AinSoph` on Linux (`saves/world/`, `settings.cfg`, `logs/`). Delete `saves/world` to start a new world.
 
 ---
 
 ## Project Status
 
-**Works now:** world generation (same world every launch for a given seed), fog of war, movement, caves, morning manna, eating, animals (30 species from ITEMS.md — they wander, eat manna, predators hunt, prey flee, two replace each that dies), hunger/sleep death, NPCs that think, move, talk and show their state, dialogue, kill resolution, praying at the altar, Council voting with parables, skills/items granted on approval, the rib (play time saved across sessions, RIB button, naming the spouse), weekly progeny with lineage, saves, demo mode.
+**Works now:**
+- **World** — generation (the same world every launch for a seed), fog of war, biomes, caves, the hidden altar, morning manna.
+- **Survival on real time** — hunger and sleep, warnings, death, safe sleep in caves. Saved: time away counts, and logging out is sleeping where you stand.
+- **People** — four founding travellers in every new world; NPCs that think, move, talk in character, remember, and take their creations to the Council; dialogue.
+- **Animals** — 30 species from ITEMS.md; they wander, eat manna, hunt and flee; clean ones are food.
+- **The rib** — earned after a week of play, named and described by you; weekly children with lineage.
+- **The Council** — three seats, parables, 2-of-3 votes; approved skills, items and rules enter the world, and rules become laws every NPC lives by.
+- **Routes** — send travellers to another world and receive theirs.
+- **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
 
-**Designed but not wired up yet:**
-
-- **A new world starts empty.** By design NPCs come from players: the rib → spouse → progeny, and travellers over routes. Until a player has played a week, their world has no NPCs. Demo mode places five so the world can be seen alive.
-- **NPC creations.** NPCs decide to create skills, items and rules, but don't yet take them to the Council.
-- **Rules.** Council-approved rules are recorded but not enforced.
-- **Routes** (moving NPCs between worlds) have a UI but haven't been tested end to end.
-
-The full demo tour has been run on the shipped model, Qwen 2.5 1.5B.
+**Not yet:** controller / Steam Deck input, and a full real-week playthrough on the shipped model. See [STEAM.md](STEAM.md) for the release checklist.
 
 ---
 

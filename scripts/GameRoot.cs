@@ -48,6 +48,9 @@ public partial class GameRoot : Node
 
     public static bool                 IsReady             { get; private set; }
 
+    /// <summary>Rules the Council has approved in this world.</summary>
+    public static List<Data.LawRecord> Laws                { get; } = new();
+
     /// <summary>No model loaded — NPCs and the Council use scripted replies.</summary>
     public static bool                 IsDemo              => !Llm.IsReady;
 
@@ -57,6 +60,7 @@ public partial class GameRoot : Node
 
     private const string SaveSubPath  = "user://saves/world";
     private const string TourSavePath = "user://saves/demo_tour"; // wiped each tour run
+    private const string TestSavePath = "user://saves/selftest";  // wiped each self-test run
 
     private static bool HasArg(string arg) =>
         OS.GetCmdlineUserArgs().Contains(arg) || OS.GetCmdlineArgs().Contains(arg);
@@ -67,6 +71,24 @@ public partial class GameRoot : Node
     private DateTime _worldCreatedUtc = DateTime.UtcNow;
 
     private bool _ribButtonShown;
+    private double _statusTimer;
+
+    private void ApplySettings() => AinSoph.UI.GameSettings.Apply();
+
+    private void UpdateSurvivalStatus()
+    {
+        if (Player == null || _worldScene == null) return;
+        var now   = DateTime.UtcNow;
+        var ate   = (now - Player.Survival.LastAteUtc).TotalHours;
+        var slept = (now - Player.Survival.LastSleptUtc).TotalHours;
+        string Ago(double h) => h < 1 ? $"{(int)(h * 60)}m" : $"{h:F0}h";
+
+        var text = Player.Survival.IsSleeping
+            ? (Player.Survival.IsInCave ? "Sleeping in a cave" : "Sleeping exposed")
+            : $"Ate {Ago(ate)} ago · Slept {Ago(slept)} ago";
+        if (Player.Survival.IsInCave && !Player.Survival.IsSleeping) text += " · In a cave";
+        _worldScene.SetSurvivalStatus(text, ate >= 20 || slept >= 20);
+    }
 
     // NPC pump — the queue is drained continuously, one NPC at a time
     private double _npcPumpTimer;
@@ -86,7 +108,13 @@ public partial class GameRoot : Node
 
     public override void _Ready()
     {
-        GD.Print("Ain Soph — booting");
+        _instance = this;
+        GD.Print($"Ain Soph {AinSoph.UI.GameSettings.Version} — booting");
+
+        // Sound and settings first, so the boot screen already has music
+        AddChild(new AinSoph.Audio.Sound());
+        AinSoph.UI.GameSettings.Load();
+        CallDeferred(MethodName.ApplySettings);
 
         // 1. Model extraction (first launch) — boots rest of world in callback
         var bootScreen = new AinSoph.UI.ModelBootScreen();
@@ -110,19 +138,24 @@ public partial class GameRoot : Node
         // 3. Save manager — load existing world or create new
         GD.Print("GameRoot: initializing save manager...");
         // The demo tour always starts from a fresh, throwaway world
-        var tour    = HasArg("--demo-tour");
-        var saveDir = ProjectSettings.GlobalizePath(tour ? TourSavePath : SaveSubPath);
-        if (tour && System.IO.Directory.Exists(saveDir))
+        var tour     = HasArg("--demo-tour");
+        var selfTest = HasArg("--selftest");
+        var saveDir  = ProjectSettings.GlobalizePath(tour ? TourSavePath : selfTest ? TestSavePath : SaveSubPath);
+        if ((tour || selfTest) && System.IO.Directory.Exists(saveDir))
             System.IO.Directory.Delete(saveDir, recursive: true);
         Save        = new SaveManager(saveDir);
 
         var worldData = Save.LoadWorld();
         int worldSeed;
 
-        if (worldData is not null && worldData.WorldSeed != 0)
+        bool isNewWorld = !(worldData is not null && worldData.WorldSeed != 0);
+        if (!isNewWorld)
         {
-            worldSeed = worldData.WorldSeed;
+            worldSeed = worldData!.WorldSeed;
             WorldName = worldData.WorldName;
+            Laws.Clear();
+            Laws.AddRange(worldData.Laws);
+            PublishLaws();
             _worldCreatedUtc = worldData.CreatedUtc;
             GD.Print($"GameRoot: loaded world '{WorldName}' (seed {worldSeed})");
         }
@@ -157,6 +190,11 @@ public partial class GameRoot : Node
 
         // 4c. Route manager
         Routes = new Data.RouteManager(Save, LiveNpcs);
+        Routes.OnEmigrated += npc =>
+        {
+            NpcQueue?.Remove(npc.NpcId);
+            _worldScene?.RemoveNpc(npc.NpcId);
+        };
 
         // 5. NPC queue
         NpcQueue = new NpcTickQueue();
@@ -187,6 +225,9 @@ public partial class GameRoot : Node
                 TileY  = playerData.TileY,
             };
             Player.AccumulatedPlayHours = playerData.AccumulatedPlayHours;
+            // Survival continues from the save — time away counts (logout is sleep)
+            Player.Survival.Restore(playerData.LastAteUtc, playerData.LastSleptUtc,
+                                    playerData.SleepStartUtc, playerData.IsInCave);
             Player.RestoreTribe(playerData.HasRib, playerData.SpouseNpcId, playerData.ProgenyIds);
             foreach (var skill in playerData.SkillIds) Player.SkillIds.Add(skill);
             GD.Print($"GameRoot: player '{Player.Name}' loaded — {Player.AccumulatedPlayHours:F1}h played" +
@@ -235,8 +276,13 @@ public partial class GameRoot : Node
 
         GD.Print($"GameRoot: {LiveNpcs.Count} NPCs loaded into queue");
 
-        // Demo mode — a new world has no NPCs yet (they come from players), so
-        // seed a few around the player to show the world living
+        // A new world is not empty: a few travellers crossed into it before you
+        // did. They are foreigners — they live, talk and survive, but cannot
+        // create or pray. Your own tribe still comes only from the rib.
+        if (isNewWorld && !tour)
+            SeedFoundingTravellers(nowUtc);
+
+        // Demo mode and the tour: a few native NPCs (who can create and pray) to show the world living
         if ((IsDemo || tour) && LiveNpcs.Count == 0)
             SeedDemoNpcs(nowUtc);
 
@@ -245,6 +291,9 @@ public partial class GameRoot : Node
 
         // 9. Council + interaction
         Council      = new TribuneCouncil(Llm);
+        _creations   = new NpcCreationPipeline(Council);
+        _creations.OnCreationApproved += OnNpcCreationApproved;
+        _creations.OnCreationRejected += OnNpcCreationRejected;
         var parser   = new CouncilSubmissionParser();
         Interactions = new InteractionResolver(Grid, Altar, parser);
 
@@ -286,8 +335,11 @@ public partial class GameRoot : Node
             _worldScene = scene;
             ShowAllAnimals();
             scene.RibRequested += OnRibRequested;
+            AddChild(new AinSoph.UI.GameMenu());
+            if (!tour && !selfTest) AddChild(new AinSoph.UI.Hints()); // the tour has its own captions
             if (IsDemo) scene.ShowWorldText("Demo mode — the voices you hear are scripted.");
-            if (tour)   AddChild(new Demo.DemoDirector());
+            if (tour)     AddChild(new Demo.DemoDirector());
+            if (selfTest) AddChild(new Demo.SelfTest());
             GD.Print("GameRoot: WorldScene ready");
 
             // New player — show naming screen on top of the world
@@ -328,6 +380,14 @@ public partial class GameRoot : Node
 
         Player.TickPlayTime(DateTime.UtcNow);
 
+        // Hunger and sleep at a glance
+        _statusTimer -= delta;
+        if (_statusTimer <= 0 && _worldScene != null)
+        {
+            _statusTimer = 1.0;
+            UpdateSurvivalStatus();
+        }
+
         // The rib — announce it once when earned; the RIB button stays until it is used
         bool ribReady = Player.HasRib && !Player.HasSpouse && !string.IsNullOrEmpty(Player.Name);
         if (ribReady != _ribButtonShown && _worldScene != null)
@@ -335,7 +395,10 @@ public partial class GameRoot : Node
             _ribButtonShown = ribReady;
             _worldScene.SetRibAvailable(ribReady);
             if (ribReady)
+            {
                 _worldScene.ShowWorldText("A week has passed in this world. Something stirs at your side — the rib is yours.");
+                AinSoph.Audio.Sound.Play("rib");
+            }
         }
 
         // Animals near the player wander
@@ -386,10 +449,10 @@ public partial class GameRoot : Node
         if (Player != null)
         {
             var result = Player.Survival.Tick(nowUtc);
-            if (result.HungerWarning) _worldScene?.ShowWorldText("⚠ You must eat within the hour. ⚠");
-            if (result.SleepWarning)  _worldScene?.ShowWorldText("⚠ You must sleep within the hour. ⚠");
+            if (result.HungerWarning) { _worldScene?.ShowWorldText("⚠ You must eat within the hour. ⚠"); AinSoph.Audio.Sound.Play("warning"); }
+            if (result.SleepWarning)  { _worldScene?.ShowWorldText("⚠ You must sleep within the hour. ⚠"); AinSoph.Audio.Sound.Play("warning"); }
             if (result.IsDead)
-                KillPlayer("hunger or exhaustion");
+                KillPlayer(result.DiedOfStarvation ? "starved" : "died of exhaustion");
         }
     }
 
@@ -408,10 +471,12 @@ public partial class GameRoot : Node
         Save?.DeletePlayer();
 
         GD.Print($"GameRoot: player '{Player.Name}' died ({cause})");
+        AinSoph.Audio.Sound.Play("death");
+        var fallenName = Player.Name;
         Player = null;
 
         // New character — show creation screen, spawn near a cave
-        _worldScene?.ShowWorldText("You have died. A new light descends.");
+        _worldScene?.ShowWorldText($"{fallenName} {cause}. A new light descends.");
         _worldScene?.RefreshMap();
         CallDeferred(MethodName.SpawnNewPlayer);
     }
@@ -678,8 +743,8 @@ public partial class GameRoot : Node
         {
             var kill = KillResolver.Resolve(predator.KillNumber, Player.KillNumber);
             _worldScene?.ShowNpcSpeech(predator.AnimalId, "!");
-            if (kill.AttackerSucceeds) KillPlayer($"killed by a {predator.Name}");
-            else _worldScene?.ShowWorldText($"A {predator.Name} attacks! You fight it off.");
+            if (kill.AttackerSucceeds) KillPlayer($"was killed by a {predator.Name}");
+            else { _worldScene?.ShowWorldText($"A {predator.Name} attacks! You fight it off."); AinSoph.Audio.Sound.Play("reap"); }
             return;
         }
 
@@ -900,7 +965,8 @@ public partial class GameRoot : Node
             WorldSeed    = _worldSeed,
             CreatedUtc   = _worldCreatedUtc,
             LastSavedUtc = DateTime.UtcNow,
-            WorldName    = WorldName
+            WorldName    = WorldName,
+            Laws         = Laws.ToList(),
         });
 
         // Player — not until they have a name (quit during creation = never arrived)
@@ -915,6 +981,7 @@ public partial class GameRoot : Node
             LastAteUtc   = Player.Survival.LastAteUtc,
             LastSleptUtc = Player.Survival.LastSleptUtc,
             IsInCave     = Player.Survival.IsInCave,
+            SleepStartUtc = Player.Survival.SleepStartUtc,
             SkillIds     = Player.SkillIds.ToList(),
 
             // Rib — play time must survive restarts or a week of play never adds up
@@ -1055,6 +1122,11 @@ public partial class GameRoot : Node
                 break;
         }
 
+        // An NPC who sets out to create something takes it to the Council (NPCS.md)
+        if (decision.ParsedState == NPC.NpcState.Creating && !npc.IsForeigner &&
+            !string.IsNullOrWhiteSpace(decision.CreationIntent))
+            _instance?.TryBeginCreation(npc, decision);
+
         _worldScene?.MoveNpc(npc.NpcId, npc.TileX, npc.TileY);
         _worldScene?.SetNpcState(npc.NpcId, npc.State);
         if (decision.ParsedState == NPC.NpcState.Eating) _worldScene?.RefreshMap();
@@ -1063,6 +1135,116 @@ public partial class GameRoot : Node
             _worldScene?.ShowNpcSpeech(npc.NpcId, decision.Speech);
         else if (decision.ParsedState == NPC.NpcState.Creating && !string.IsNullOrEmpty(decision.CreationIntent))
             _worldScene?.ShowNpcSpeech(npc.NpcId, $"(working on {decision.CreationIntent})");
+    }
+
+    // ── Laws, NPC creations, founding travellers ─────────────────────────
+
+    private static GameRoot? _instance;
+    private NpcCreationPipeline? _creations;
+    private readonly HashSet<string> _creating = new();
+    private DateTime _lastCreationUtc = DateTime.MinValue;
+
+    // Three Council calls per creation; on a small CPU that is a minute or more
+    // of inference, so NPC creations are spaced out
+    private TimeSpan CreationCooldown => IsDemo ? TimeSpan.FromSeconds(40) : TimeSpan.FromMinutes(20);
+
+    private const int FoundingTravellerCount = 4;
+
+    private static void PublishLaws() =>
+        NpcPromptBuilder.WorldLaws = Laws.Select(l => (l.Name, l.Description)).ToList();
+
+    public static void AddLaw(string name, string description, string createdBy)
+    {
+        Laws.Add(new Data.LawRecord
+        {
+            Name = name, Description = description, CreatedBy = createdBy, ApprovedUtc = DateTime.UtcNow,
+        });
+        PublishLaws();
+        GD.Print($"GameRoot: law added — {name}");
+    }
+
+    private void TryBeginCreation(NpcBrain npc, NpcDecision decision)
+    {
+        if (_creations == null || _creating.Contains(npc.NpcId)) return;
+        if (DateTime.UtcNow - _lastCreationUtc < CreationCooldown) return;
+
+        _lastCreationUtc = DateTime.UtcNow;
+        _creating.Add(npc.NpcId);
+        _worldScene?.SetNpcState(npc.NpcId, NPC.NpcState.Praying);
+        _worldScene?.ShowNpcSpeech(npc.NpcId, $"(praying: {decision.CreationIntent})");
+        RunCreation(npc, decision);
+    }
+
+    private async void RunCreation(NpcBrain npc, NpcDecision decision)
+    {
+        try   { await _creations!.RunAsync(npc, decision, _cts.Token); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { GD.PrintErr($"GameRoot: creation by {npc.NpcId} failed: {ex.Message}"); }
+        finally { _creating.Remove(npc.NpcId); }
+    }
+
+    private void OnNpcCreationApproved(NpcBrain npc, Council.CouncilVerdict verdict)
+    {
+        var sub = verdict.Submission;
+        if (sub == null || !LiveNpcs.Contains(npc)) return;
+
+        switch (sub.Type.ToLowerInvariant())
+        {
+            case "item":
+                var (tx, ty) = FindFreeTileNear(npc.TileX, npc.TileY);
+                Items?.Spawn(name: sub.Name, type: "crafted", tileX: tx, tileY: ty, description: sub.Description);
+                break;
+            case "rule":
+                AddLaw(sub.Name, sub.Description, npc.NpcId);
+                break;
+            default: // skill
+                npc.Memory.Write(MemorySlot.Action, $"The Council granted me a new skill: {sub.Name}.");
+                break;
+        }
+
+        npc.Memory.Write(MemorySlot.Feeling, $"The Council heard me. {sub.Name} is in the world now.");
+        _worldScene?.ShowNpcSpeech(npc.NpcId, $"The Council has granted it: {sub.Name}.");
+        if (IsNear(npc)) _worldScene?.ShowWorldText($"{npc.Name}'s creation enters the world: {sub.Name}.");
+        _worldScene?.RefreshMap();
+        SaveAll();
+    }
+
+    private void OnNpcCreationRejected(NpcBrain npc, Council.CouncilVerdict verdict)
+    {
+        if (!LiveNpcs.Contains(npc)) return;
+        var parable = verdict.Responses.FirstOrDefault(r => !r.Passed)?.Homily ?? "";
+        npc.Memory.Write(MemorySlot.Feeling,
+            $"I prayed for {verdict.Submission?.Name}. The Council answered with a story: {parable}");
+        _worldScene?.ShowNpcSpeech(npc.NpcId, "(the Council does not move)");
+    }
+
+    private bool IsNear(NpcBrain npc) =>
+        Player != null && Math.Abs(npc.TileX - Player.TileX) <= 12 && Math.Abs(npc.TileY - Player.TileY) <= 8;
+
+    private void SeedFoundingTravellers(DateTime nowUtc)
+    {
+        if (Player == null) return;
+        var arrivals = new List<Data.NpcSaveData>();
+        foreach (var decan in DecanRegistry.All.OrderBy(_ => Random.Shared.Next()).Take(FoundingTravellerCount))
+        {
+            var (tx, ty) = FindFreeTileNear(Player.TileX + Random.Shared.Next(-6, 7), Player.TileY + Random.Shared.Next(-5, 6));
+            arrivals.Add(new Data.NpcSaveData
+            {
+                Id            = $"traveller:{Guid.NewGuid():N}",
+                DecanId       = decan.Id,
+                Name          = decan.Name,
+                TileX         = tx,
+                TileY         = ty,
+                MemoryThought = "I crossed into this world before anyone else came. I remember a different sky.",
+                LastAteUtc    = nowUtc,
+                LastSleptUtc  = nowUtc,
+                IsForeigner   = true,
+                Lineage       = new List<string> { $"crossed-before:{nowUtc:yyyy-MM-dd}" },
+            });
+        }
+        foreach (var a in arrivals) Save?.SaveNpc(a);
+        InstantiateForeigners(arrivals);
+        GD.Print($"GameRoot: {arrivals.Count} founding travellers crossed into the new world");
     }
 
     // ── Tribe: the rib, the spouse, progeny ───────────────────────────────
@@ -1080,6 +1262,7 @@ public partial class GameRoot : Node
             var spouse = LiveNpcs.Find(n => n.NpcId == Player?.SpouseNpcId);
             AdoptTribeNpc(npc, spouse?.TileX ?? Player!.TileX, spouse?.TileY ?? Player!.TileY, priority: false);
             _worldScene?.ShowWorldText($"A child is born to your tribe: {npc.Name}.");
+            AinSoph.Audio.Sound.Play("birth");
         };
     }
 
@@ -1109,6 +1292,7 @@ public partial class GameRoot : Node
                 var spouse = Tribe.CreateSpouse(name, description, Llm, DateTime.UtcNow);
                 if (spouse == null) return;
                 _worldScene.ShowWorldText($"{spouse.Name} stands beside you. Your tribe has begun.");
+                AinSoph.Audio.Sound.Play("rib");
                 _worldScene.ShowNpcSpeech(spouse.NpcId, "…");
             },
             () => _worldScene.InputLocked = false);
@@ -1225,6 +1409,11 @@ public partial class GameRoot : Node
 
     public static WorldScene? Scene => _worldScene;
 
+    // ── For the self-test ─────────────────────────────────────────────────
+    public static int WorldSeed => _instance?._worldSeed ?? 0;
+    public void SaveNow() => SaveAll();
+    public string SaveDirectory => Save?.SaveDirectory ?? "";
+
     /// <summary>Press RIB (demo tour).</summary>
     public void UseRib() => OnRibRequested();
 
@@ -1276,6 +1465,7 @@ public partial class GameRoot : Node
         if (skill == Skills.SkillType.Reap && npc != null)
         {
             var kill = KillResolver.Resolve(Player.KillNumber, npc.KillNumber);
+            AinSoph.Audio.Sound.Play("reap");
             GD.Print($"GameRoot: reap {npc.Name} — {kill.AttackerRoll}/{kill.AttackerKillNum} " +
                      $"vs {kill.DefenderRoll}/{kill.DefenderKillNum}");
             if (kill.AttackerSucceeds)
@@ -1295,6 +1485,7 @@ public partial class GameRoot : Node
         if (skill == Skills.SkillType.Reap && animal != null)
         {
             var kill = KillResolver.Resolve(Player.KillNumber, animal.KillNumber);
+            AinSoph.Audio.Sound.Play("reap");
             if (kill.AttackerSucceeds)
             {
                 _worldScene.ShowWorldText(animal.Species?.Edible == true
@@ -1314,6 +1505,7 @@ public partial class GameRoot : Node
         // Pray → only at the altar does it reach the Council
         if (skill == Skills.SkillType.Pray)
         {
+            AinSoph.Audio.Sound.Play("pray");
             if (IsAtAltar())
                 _worldScene.OpenAltar(petition => OnAltarPetition(petition));
             else
@@ -1322,7 +1514,9 @@ public partial class GameRoot : Node
         }
 
         // All other primitives → resolve and show world text
+        var ateBefore = Player.Survival.LastAteUtc;
         var result = await Interactions.ResolveAsync(req, _cts.Token);
+        if (Player != null && Player.Survival.LastAteUtc > ateBefore) AinSoph.Audio.Sound.Play("eat");
         if (!string.IsNullOrEmpty(result.WorldText))
             _worldScene.ShowWorldText(result.WorldText);
         if (skill == Skills.SkillType.Reap && item != null)
@@ -1346,6 +1540,7 @@ public partial class GameRoot : Node
             if (reply.Length > 1 && reply[0] == '"' && reply[^1] == '"') reply = reply[1..^1];
             if (reply.Length == 0) reply = "…";
             _worldScene.SetDialogueSpeech(reply);
+            AinSoph.Audio.Sound.Play("speech");
             _worldScene.ShowNpcSpeech(npc.NpcId, reply);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -1403,6 +1598,7 @@ public partial class GameRoot : Node
             sb.AppendLine(response.Homily);
             sb.AppendLine();
         }
+        AinSoph.Audio.Sound.Play("council");
         _worldScene.SetDialogueSpeech(verdict.Responses.Count > 0
             ? sb.ToString().Trim()
             : "The Council is silent. Nothing enters the world.");
@@ -1438,9 +1634,9 @@ public partial class GameRoot : Node
                     break;
 
                 case "rule":
-                    // Rules are logged — full rule engine is future scope
-                    GD.Print($"GameRoot: rule '{sub.Name}' approved — '{sub.Description}'");
+                    AddLaw(sub.Name, sub.Description, Player.Id);
                     _worldScene.ShowWorldText($"The Council accepts the rule: {sub.Name}");
+                    SaveAll();
                     break;
             }
         }

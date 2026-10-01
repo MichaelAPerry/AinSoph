@@ -45,6 +45,18 @@ public class SurvivalTracker
     // Eat
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Restore state from a save. The world does not pause: time that passed
+    /// while the player was away counts, and the next Tick judges it.
+    /// </summary>
+    public void Restore(DateTime lastAteUtc, DateTime lastSleptUtc, DateTime? sleepStartUtc, bool inCave)
+    {
+        if (lastAteUtc   != default) LastAteUtc   = lastAteUtc;
+        if (lastSleptUtc != default) LastSleptUtc = lastSleptUtc;
+        SleepStartUtc = sleepStartUtc;
+        IsInCave      = inCave;
+    }
+
     /// <summary>Character consumed an edible item.</summary>
     public void RecordEat(DateTime nowUtc)
     {
@@ -134,7 +146,8 @@ public class SurvivalTracker
         // --- Sleep check ---
         var hoursSinceSlept = (nowUtc - LastSleptUtc).TotalHours;
 
-        if (!SleptThisWindow && hoursSinceSlept >= DayHours)
+        // Someone already asleep is meeting the requirement, not failing it
+        if (!SleptThisWindow && !IsSleeping && hoursSinceSlept >= DayHours)
         {
             result.DiedOfExhaustion = true;
             return result;

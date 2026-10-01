@@ -28,6 +28,7 @@ namespace AinSoph.UI
         private Label         _warningLabel;
         private Button        _sleepBtn;
         private Button        _ribBtn;
+        private Label         _statusLabel;
 
         // ── State ────────────────────────────────────────────────────────────
         private List<SkillType> _unlockedSkills = new();
@@ -92,6 +93,14 @@ namespace AinSoph.UI
                 _sleepBtn.Text = sleeping ? "WAKE" : "SLEEP";
         }
 
+        /// <summary>Hunger and sleep at a glance — they run on real hours.</summary>
+        public void SetStatus(string text, bool urgent)
+        {
+            if (_statusLabel == null) return;
+            _statusLabel.Text = text;
+            _statusLabel.AddThemeColorOverride("font_color", urgent ? WarnColor : ClockColor);
+        }
+
         /// <summary>Show the RIB button while the rib is earned but not yet used.</summary>
         public void SetRibAvailable(bool available)
         {
@@ -136,16 +145,25 @@ namespace AinSoph.UI
             _clockLabel = new Label();
             _clockLabel.AddThemeColorOverride("font_color", ClockColor);
             _clockLabel.AddThemeFontSizeOverride("font_size", 14);
-            _clockLabel.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-            _clockLabel.Position = new Vector2(w - 110, h - barH - 24);
+            _clockLabel.HorizontalAlignment = HorizontalAlignment.Right;
+            _clockLabel.Size     = new Vector2(120, 20);
+            _clockLabel.Position = new Vector2(w - 132, h - barH - 24);
             AddChild(_clockLabel);
+
+            // ── Survival status (bottom-right, above the clock) ──
+            _statusLabel = new Label();
+            _statusLabel.AddThemeColorOverride("font_color", ClockColor);
+            _statusLabel.AddThemeFontSizeOverride("font_size", 12);
+            _statusLabel.HorizontalAlignment = HorizontalAlignment.Right;
+            _statusLabel.Size     = new Vector2(360, 18);
+            _statusLabel.Position = new Vector2(w - 372, h - barH - 44);
+            AddChild(_statusLabel);
 
             // ── Warning label (centre screen) ──
             _warningLabel = new Label();
             _warningLabel.AddThemeColorOverride("font_color", WarnColor);
             _warningLabel.AddThemeFontSizeOverride("font_size", 20);
             _warningLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            _warningLabel.SetAnchorsPreset(Control.LayoutPreset.Center);
             _warningLabel.Position = new Vector2(w / 2 - 200, h / 2 - 60);
             _warningLabel.Size     = new Vector2(400, 40);
             _warningLabel.Visible  = false;
@@ -162,7 +180,7 @@ namespace AinSoph.UI
             _sleepBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.11f, 0.17f, 0.14f)));
             _sleepBtn.AddThemeFontSizeOverride("font_size", 10);
             _sleepBtn.AddThemeColorOverride("font_color", new Color(0.55f, 0.78f, 0.60f));
-            _sleepBtn.Pressed += () => EmitSignal(SignalName.SleepRequested);
+            _sleepBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.SleepRequested); };
             _actionBarPanel.AddChild(_sleepBtn);
 
             // ── RIB button — appears once the rib is earned, until it is used ──
@@ -177,7 +195,7 @@ namespace AinSoph.UI
             _ribBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.24f, 0.19f, 0.08f)));
             _ribBtn.AddThemeFontSizeOverride("font_size", 10);
             _ribBtn.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.45f));
-            _ribBtn.Pressed += () => EmitSignal(SignalName.RibRequested);
+            _ribBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RibRequested); };
             _actionBarPanel.AddChild(_ribBtn);
 
             // ── ROUTES button — far right of action bar ──
@@ -190,7 +208,7 @@ namespace AinSoph.UI
             routesBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
             routesBtn.AddThemeFontSizeOverride("font_size", 10);
             routesBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
-            routesBtn.Pressed += () => EmitSignal(SignalName.RoutesOpenRequested);
+            routesBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RoutesOpenRequested); };
             _actionBarPanel.AddChild(routesBtn);
 
             // Build initial slots with the 6 primitives

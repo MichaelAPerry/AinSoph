@@ -196,6 +196,18 @@ namespace AinSoph.Demo
                 scene.CloseDialogue();
             }
 
+            // 7. The menu
+            var menu = root.GetChildren().OfType<GameMenu>().FirstOrDefault();
+            if (menu != null)
+            {
+                Caption("Esc opens the menu — sound, fullscreen, hints.  The world keeps running while it is open.");
+                menu.Toggle();
+                await Wait(2.8);
+                await Shot("menu");
+                menu.Toggle();
+                await Wait(0.4);
+            }
+
             Caption("Ain Soph — the boundless.  Nothing phones home.");
             await Wait(2.5);
             GD.Print("DemoDirector: tour complete");

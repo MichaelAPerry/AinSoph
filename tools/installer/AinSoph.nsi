@@ -3,7 +3,7 @@
 ; Built by tools/package-windows.sh from the Steam Windows build
 ; (build/steam/windows: AinSoph.exe, data_AinSoph_windows_x86_64/, models/).
 ; Installs per user — no administrator prompt — to %LOCALAPPDATA%\Programs\Ain Soph.
-; Saved worlds live in %APPDATA%\Godot\app_userdata\Ain Soph and are kept on uninstall.
+; Saved worlds live in %APPDATA%\AinSoph and are kept on uninstall.
 
 Target amd64-unicode   ; the game is x86-64 only, so the installer is too
 !include "MUI2.nsh"

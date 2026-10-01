@@ -68,6 +68,16 @@ Builds the Steam Windows folder, then wraps it with NSIS (`apt install nsis`, or
 
 The exe's icon (`assets/icon.ico`) and version info come from the export preset, applied by `rcedit`: set **Editor Settings → Export → Windows → rcedit** to `rcedit-x64.exe` ([download](https://github.com/electron/rcedit/releases)), and on Linux also **wine** to your `wine64`. The version number comes from `config/version` in `project.godot`.
 
+### Releases from GitHub
+
+Pushing a version tag builds everything in GitHub Actions and publishes it:
+
+```
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+`.github/workflows/release.yml` downloads Godot, the export templates and the model, runs the self-test against the real model, builds the installer and the Linux build, and attaches both to a GitHub Release. It can also be run by hand from the Actions tab (that makes a draft release). Every push also runs `.github/workflows/ci.yml`: build and `--selftest`.
+
 **A C# export is a folder, not a single file.** Next to the executable is a `data_AinSoph_<platform>/` folder holding the .NET runtime, LLamaSharp and llama.cpp's native libraries (no-AVX, AVX2 and AVX-512 builds, so old CPUs work). Ship the whole folder.
 
 ---
@@ -80,8 +90,8 @@ Other builds store the model (~1 GB) inside the PCK. On first run, Ain Soph extr
 
 | OS | Path |
 |----|------|
-| Windows | `%APPDATA%\Godot\app_userdata\Ain Soph\models\` |
-| Linux | `~/.local/share/godot/app_userdata/Ain Soph/models/` |
+| Windows | `%APPDATA%\AinSoph\models\` |
+| Linux | `~/.local/share/AinSoph/models/` |
 
 This extraction takes a few seconds to half a minute and is shown on screen. It only happens once. Subsequent launches boot directly.
 

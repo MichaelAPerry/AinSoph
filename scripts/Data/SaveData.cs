@@ -106,6 +106,7 @@ public class PlayerSaveData
     public DateTime LastAteUtc   { get; set; }
     public DateTime LastSleptUtc { get; set; }
     public bool     IsInCave     { get; set; }
+    public DateTime? SleepStartUtc { get; set; } // asleep when they logged out — logout is sleep
 
     // Play time — for rib tracking
     public double AccumulatedPlayHours { get; set; }
@@ -143,4 +144,15 @@ public class WorldSaveData
     public DateTime CreatedUtc   { get; set; }
     public DateTime LastSavedUtc { get; set; }
     public string   WorldName    { get; set; } = string.Empty;
+
+    // Rules the Council has approved — world physics added by the people in it (RULES.md)
+    public List<LawRecord> Laws  { get; set; } = new();
+}
+
+public class LawRecord
+{
+    public string   Name        { get; set; } = string.Empty;
+    public string   Description { get; set; } = string.Empty;
+    public string   CreatedBy   { get; set; } = string.Empty;
+    public DateTime ApprovedUtc { get; set; }
 }
