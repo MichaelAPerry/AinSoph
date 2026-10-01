@@ -380,7 +380,7 @@ Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/Ai
 - **Routes** — send travellers to another world and receive theirs.
 - **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
 
-**Not yet:** controller / Steam Deck input, and a full real-week playthrough on the shipped model. See [STEAM.md](STEAM.md) for the release checklist.
+**Not yet:** controller / Steam Deck input, and a full real-week playthrough on the shipped model.
 
 ---
 
@@ -400,7 +400,7 @@ For a Windows installer — one `AinSoph-Setup-0.1.0.exe` that installs the game
 GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/package-windows.sh
 ```
 
-Full details in [BUILD.md](BUILD.md); the road to release in [STEAM.md](STEAM.md).
+Full details in [BUILD.md](BUILD.md).
 
 ---
 
@@ -418,7 +418,6 @@ Full details in [BUILD.md](BUILD.md); the road to release in [STEAM.md](STEAM.md
 | [COUNCIL.md](COUNCIL.md) | The Triune Council and its prompts |
 | [TECH.md](TECH.md) | All technical decisions |
 | [BUILD.md](BUILD.md) | Full build instructions |
-| [STEAM.md](STEAM.md) | What is ready for Steam and what is left |
 | [data/ain_soph_72.json](data/ain_soph_72.json) | The 72 NPC personality seeds |
 
 ---
@@ -427,12 +426,12 @@ Full details in [BUILD.md](BUILD.md); the road to release in [STEAM.md](STEAM.md
 
 **Game code:** MIT — see [LICENSE](LICENSE).
 
-**Art:** [Kenney](https://kenney.nl) 1-bit pack and Modular Characters, CC0 (`assets/sprites/*/LICENSE.txt`).
+**Art:** [Kenney](https://kenney.nl) 1-bit pack and Modular Characters, CC0 (`assets/sprites/*/LICENSE.txt`). The music and sound effects are original to this project (synthesised by `tools/make-sounds.py`) and MIT like the code.
 
 **Runtime:** [LLamaSharp](https://github.com/SciSharp/LLamaSharp) and [llama.cpp](https://github.com/ggml-org/llama.cpp), both MIT. [Godot](https://godotengine.org), MIT.
 
 **Model:** [Qwen 2.5 1.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF), Apache 2.0 — fine to bundle in a commercial build. (Ain Soph used the 3B size before; that one is under the Qwen Research License, which restricts commercial use.) The model is not in this repository.
 
-The game is free. The world can be forked. Forking is not punished. It is designed for.
+The game is free, and it stays free wherever it is published — GitHub, itch.io and Steam. On itch.io it is pay-what-you-want with a $0 minimum: paying is a way to support the work, never a way to unlock anything. The world can be forked. Forking is not punished. It is designed for.
 
 Named by Michael Perry.

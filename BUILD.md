@@ -123,5 +123,3 @@ If the export has no model in it, the game boots in demo mode (scripted NPC and 
 Ship the whole export folder (executable + `data_AinSoph_<platform>/`, plus `models/` for Steam builds). Players double-click and play.
 
 Minimum hardware: 8 GB RAM, any x86_64 CPU (no GPU needed), about 1.5 GB of disk.
-
-For Steam, see [STEAM.md](STEAM.md).
