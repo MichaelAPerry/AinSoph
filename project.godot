@@ -11,12 +11,22 @@ config_version=5
 [application]
 
 config/name="Ain Soph"
+config/version="0.1.0"
 config/features=PackedStringArray("4.4", "C#")
-config/run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/Main.tscn"
+config/icon="res://assets/icon.png"
+config/windows_native_icon="res://assets/icon.ico"
+config/use_custom_user_dir=true
+config/custom_user_dir_name="AinSoph"
 
 [autoload]
 
 GameRoot="*res://scripts/GameRoot.cs"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
 
 [dotnet]
 
@@ -24,5 +34,6 @@ project/assembly_name="AinSoph"
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

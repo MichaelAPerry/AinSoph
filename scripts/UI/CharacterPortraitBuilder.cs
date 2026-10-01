@@ -6,17 +6,22 @@ using AinSoph.NPC;
 namespace AinSoph.UI
 {
     /// <summary>
-    /// Builds a full-body character portrait by layering Kenney modular PNG parts.
+    /// Builds a head-and-shoulders character portrait by layering Kenney modular PNG parts.
     /// Each character's appearance is deterministically derived from their DecanSeed id.
     /// The composite is rendered into a SubViewportContainer for display on DialogueScreen.
     ///
+    /// The parts are ~170px illustrations (not pixel art). The bust is laid out in
+    /// source pixels — 240 wide, ~330 tall, origin at top-centre — then scaled.
+    ///
     /// Layer order (back to front):
-    ///   Skin body parts → Pants → Shirt → Shoes → Face (head/neck) → Hair → Eyebrows → Eyes → Nose → Mouth
+    ///   Shirt → Neck → Head → Eyebrows → Eyes → Nose → Mouth → Hair
     /// </summary>
     public partial class CharacterPortraitBuilder : Node2D
     {
-        // Portrait dimensions (displayed at 4× the Kenney source size)
-        public const int Scale = 4;
+        // Bust is ~240×330 source px; this fits it in the dialogue portrait box
+        public const float PortraitScale = 0.8f;
+        public const float PortraitWidth  = 240f * PortraitScale;
+        public const float PortraitHeight = 330f * PortraitScale;
 
         // Skin tints available (Tint 1–8)
         private static readonly int SkinTintCount = 8;
@@ -56,8 +61,6 @@ namespace AinSoph.UI
             int    hairStyle  = (Math.Abs(seed >> 6)  % (isWoman ? 6 : 8)) + 1;
 
             string shirtColor = ShirtColors[Math.Abs(seed >> 9)  % ShirtColors.Length];
-            string pantsColor = PantsColors[Math.Abs(seed >> 12) % PantsColors.Length];
-            string shoeColor  = ShoeColors[Math.Abs(seed >> 15)  % ShoeColors.Length];
             string eyeColor   = EyeColors[Math.Abs(seed >> 18)   % EyeColors.Length];
             int    noseStyle  = (Math.Abs(seed >> 21) % 3) + 1;
             string[] mouths   = { "glad", "happy", "oh", "sad", "straight", "teethLower", "teethUpper" };
@@ -70,54 +73,45 @@ namespace AinSoph.UI
             if (hairColor == "brown1") hairFolder = "Brown 1";
             if (hairColor == "brown2") hairFolder = "Brown 2";
 
-            // ── Skin body ──
-            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_leg.png",   new Vector2(16, 80), Scale);
-            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_arm.png",   new Vector2(0, 40),  Scale);
-            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_hand.png",  new Vector2(0, 70),  Scale);
-            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_neck.png",  new Vector2(16, 30), Scale);
+            root.Scale = Vector2.One * PortraitScale;
 
-            // ── Pants ──
-            AddLayer(root, $"{charBase}/Pants/{pantsColor}/{GetPantsFile(pantsColor, 1)}", new Vector2(8, 75), Scale);
-
-            // ── Shirt ──
+            // ── Body ──
             string shirtFile = GetShirtFile(shirtColor, (Math.Abs(seed) % 8) + 1);
-            AddLayer(root, $"{charBase}/Shirts/{shirtFolder}/{shirtFile}", new Vector2(4, 35), Scale);
+            AddLayer(root, $"{charBase}/Shirts/{shirtFolder}/{shirtFile}",            0, 170);
+            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_neck.png",     0, 150);
+            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_head.png",     0, 8);
 
-            // ── Shoes ──
-            AddLayer(root, $"{charBase}/Shoes/{shoeColor}/{shoeColor.Replace(" ", "")}Shoe1.png", new Vector2(8, 100), Scale);
-
-            // ── Head ──
-            AddLayer(root, $"{charBase}/Skin/{tintFolder}/{tintPrefix}_head.png", new Vector2(8, 4), Scale);
+            // ── Face ──
+            string brow = $"{charBase}/Face/Eyebrows/{hairColor}Brow{browStyle}.png";
+            string eye  = $"{charBase}/Face/Eyes/eye{eyeColor}_large.png";
+            AddLayer(root, brow, -30, 62);
+            AddLayer(root, brow,  30, 62, flipH: true);
+            AddLayer(root, eye,  -30, 82);
+            AddLayer(root, eye,   30, 82);
+            AddLayer(root, $"{charBase}/Face/Nose/{tintFolder}/{tintPrefix}Nose{noseStyle}.png", 0, 104);
+            AddLayer(root, $"{charBase}/Face/Mouth/mouth_{mouthStyle}.png",           0, 132);
 
             // ── Hair ──
-            string hairFile = $"{hairColor}{hairSuffix}{hairStyle}.png";
-            // Normalize file name casing to match asset names
-            hairFile = NormalizeHairFileName(hairColor, hairSuffix, hairStyle);
-            AddLayer(root, $"{charBase}/Hair/{hairFolder}/{hairFile}", new Vector2(4, 0), Scale);
-
-            // ── Face parts ──
-            string browColor = hairColor.Replace("1", "").Replace("2", "");
-            AddLayer(root, $"{charBase}/Face/Eyebrows/{browColor}Brow{browStyle}.png",  new Vector2(10, 12), Scale);
-            AddLayer(root, $"{charBase}/Face/Eyes/eye{eyeColor}_large.png",              new Vector2(10, 16), Scale);
-            AddLayer(root, $"{charBase}/Face/Nose/{tintFolder}/{tintPrefix}Nose{noseStyle}.png", new Vector2(14, 19), Scale);
-            AddLayer(root, $"{charBase}/Face/Mouth/mouth_{mouthStyle}.png",              new Vector2(12, 23), Scale);
+            AddLayer(root, $"{charBase}/Hair/{hairFolder}/{NormalizeHairFileName(hairColor, hairSuffix, hairStyle)}", 0, 0);
 
             return root;
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────
 
-        private static void AddLayer(Node2D root, string path, Vector2 offset, int scale)
+        /// <summary>Add a part horizontally centred on x, with its top edge at y (source px).</summary>
+        private static void AddLayer(Node2D root, string path, float x, float y, bool flipH = false)
         {
-            var sprite = new Sprite2D();
-            sprite.Centered = false;
-            sprite.Position = offset * scale;
-            sprite.Scale    = Vector2.One * scale;
-
             // Load texture; if missing, skip silently
-            if (ResourceLoader.Exists(path))
-                sprite.Texture = GD.Load<Texture2D>(path);
+            if (!ResourceLoader.Exists(path)) return;
 
+            var tex    = GD.Load<Texture2D>(path);
+            var sprite = new Sprite2D();
+            sprite.Centered      = false;
+            sprite.Texture       = tex;
+            sprite.FlipH         = flipH;
+            sprite.TextureFilter = TextureFilterEnum.Linear; // illustrations, not pixel art
+            sprite.Position      = new Vector2(x - tex.GetWidth() / 2f, y);
             root.AddChild(sprite);
         }
 

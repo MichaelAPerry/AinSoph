@@ -106,15 +106,32 @@ public class PlayerSaveData
     public DateTime LastAteUtc   { get; set; }
     public DateTime LastSleptUtc { get; set; }
     public bool     IsInCave     { get; set; }
+    public DateTime? SleepStartUtc { get; set; } // asleep when they logged out — logout is sleep
 
     // Play time — for rib tracking
     public double AccumulatedPlayHours { get; set; }
+
+    // Tribe — the rib, once earned, and what it became
+    public bool          HasRib              { get; set; }
+    public string?       SpouseNpcId         { get; set; }
+    public List<string>  ProgenyIds          { get; set; } = new();
+    public DateTime?     LastProgenyBirthUtc { get; set; }
 
     // Inventory — item ids
     public List<string> InventoryItemIds { get; set; } = new();
 
     // Skills the player has acquired
     public List<string> SkillIds { get; set; } = new();
+}
+
+/// <summary>
+/// Animals — one file (animals.json): every living animal, and which cells
+/// have already received their starting animals (so they are only placed once).
+/// </summary>
+public class AnimalsSaveData
+{
+    public List<AnimalSaveData> Animals        { get; set; } = new();
+    public List<string>         PopulatedCells { get; set; } = new();
 }
 
 /// <summary>
@@ -127,4 +144,15 @@ public class WorldSaveData
     public DateTime CreatedUtc   { get; set; }
     public DateTime LastSavedUtc { get; set; }
     public string   WorldName    { get; set; } = string.Empty;
+
+    // Rules the Council has approved — world physics added by the people in it (RULES.md)
+    public List<LawRecord> Laws  { get; set; } = new();
+}
+
+public class LawRecord
+{
+    public string   Name        { get; set; } = string.Empty;
+    public string   Description { get; set; } = string.Empty;
+    public string   CreatedBy   { get; set; } = string.Empty;
+    public DateTime ApprovedUtc { get; set; }
 }

@@ -27,6 +27,8 @@ namespace AinSoph.UI
         private Label         _clockLabel;
         private Label         _warningLabel;
         private Button        _sleepBtn;
+        private Button        _ribBtn;
+        private Label         _statusLabel;
 
         // ── State ────────────────────────────────────────────────────────────
         private List<SkillType> _unlockedSkills = new();
@@ -47,12 +49,12 @@ namespace AinSoph.UI
         // Skill icon tile indices from TileRegistry
         private static readonly Dictionary<SkillType, int> SkillIcons = new()
         {
-            [SkillType.Move]  = 3,
-            [SkillType.See]   = 20,
-            [SkillType.Hear]  = 107,
-            [SkillType.Talk]  = 95,
-            [SkillType.Reap]  = 92,
-            [SkillType.Pray]  = 94,
+            [SkillType.Move]  = TileRegistry.SkillIcon(SkillType.Move),
+            [SkillType.See]   = TileRegistry.SkillIcon(SkillType.See),
+            [SkillType.Hear]  = TileRegistry.SkillIcon(SkillType.Hear),
+            [SkillType.Talk]  = TileRegistry.SkillIcon(SkillType.Talk),
+            [SkillType.Reap]  = TileRegistry.SkillIcon(SkillType.Reap),
+            [SkillType.Pray]  = TileRegistry.SkillIcon(SkillType.Pray),
         };
 
         public override void _Ready()
@@ -89,6 +91,20 @@ namespace AinSoph.UI
             _isSleeping = sleeping;
             if (_sleepBtn != null)
                 _sleepBtn.Text = sleeping ? "WAKE" : "SLEEP";
+        }
+
+        /// <summary>Hunger and sleep at a glance — they run on real hours.</summary>
+        public void SetStatus(string text, bool urgent)
+        {
+            if (_statusLabel == null) return;
+            _statusLabel.Text = text;
+            _statusLabel.AddThemeColorOverride("font_color", urgent ? WarnColor : ClockColor);
+        }
+
+        /// <summary>Show the RIB button while the rib is earned but not yet used.</summary>
+        public void SetRibAvailable(bool available)
+        {
+            if (_ribBtn != null) _ribBtn.Visible = available;
         }
 
         /// <summary>Flash a warning in the centre of the screen for 4 seconds.</summary>
@@ -129,16 +145,25 @@ namespace AinSoph.UI
             _clockLabel = new Label();
             _clockLabel.AddThemeColorOverride("font_color", ClockColor);
             _clockLabel.AddThemeFontSizeOverride("font_size", 14);
-            _clockLabel.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-            _clockLabel.Position = new Vector2(w - 110, h - barH - 24);
+            _clockLabel.HorizontalAlignment = HorizontalAlignment.Right;
+            _clockLabel.Size     = new Vector2(120, 20);
+            _clockLabel.Position = new Vector2(w - 132, h - barH - 24);
             AddChild(_clockLabel);
+
+            // ── Survival status (bottom-right, above the clock) ──
+            _statusLabel = new Label();
+            _statusLabel.AddThemeColorOverride("font_color", ClockColor);
+            _statusLabel.AddThemeFontSizeOverride("font_size", 12);
+            _statusLabel.HorizontalAlignment = HorizontalAlignment.Right;
+            _statusLabel.Size     = new Vector2(360, 18);
+            _statusLabel.Position = new Vector2(w - 372, h - barH - 44);
+            AddChild(_statusLabel);
 
             // ── Warning label (centre screen) ──
             _warningLabel = new Label();
             _warningLabel.AddThemeColorOverride("font_color", WarnColor);
             _warningLabel.AddThemeFontSizeOverride("font_size", 20);
             _warningLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            _warningLabel.SetAnchorsPreset(Control.LayoutPreset.Center);
             _warningLabel.Position = new Vector2(w / 2 - 200, h / 2 - 60);
             _warningLabel.Size     = new Vector2(400, 40);
             _warningLabel.Visible  = false;
@@ -155,8 +180,23 @@ namespace AinSoph.UI
             _sleepBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.11f, 0.17f, 0.14f)));
             _sleepBtn.AddThemeFontSizeOverride("font_size", 10);
             _sleepBtn.AddThemeColorOverride("font_color", new Color(0.55f, 0.78f, 0.60f));
-            _sleepBtn.Pressed += () => EmitSignal(SignalName.SleepRequested);
+            _sleepBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.SleepRequested); };
             _actionBarPanel.AddChild(_sleepBtn);
+
+            // ── RIB button — appears once the rib is earned, until it is used ──
+            _ribBtn = new Button();
+            _ribBtn.Text     = "RIB";
+            _ribBtn.Size     = new Vector2(64, 38);
+            _ribBtn.Position = new Vector2(w - 240, (barH - 38) / 2f);
+            _ribBtn.Visible  = false;
+            _ribBtn.TooltipText = "Give form to your spouse";
+            _ribBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.18f, 0.14f, 0.06f)));
+            _ribBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.30f, 0.24f, 0.10f)));
+            _ribBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.24f, 0.19f, 0.08f)));
+            _ribBtn.AddThemeFontSizeOverride("font_size", 10);
+            _ribBtn.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.45f));
+            _ribBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RibRequested); };
+            _actionBarPanel.AddChild(_ribBtn);
 
             // ── ROUTES button — far right of action bar ──
             var routesBtn = new Button();
@@ -168,7 +208,7 @@ namespace AinSoph.UI
             routesBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
             routesBtn.AddThemeFontSizeOverride("font_size", 10);
             routesBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
-            routesBtn.Pressed += () => EmitSignal(SignalName.RoutesOpenRequested);
+            routesBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RoutesOpenRequested); };
             _actionBarPanel.AddChild(routesBtn);
 
             // Build initial slots with the 6 primitives
@@ -218,6 +258,7 @@ namespace AinSoph.UI
                 icon.StretchMode        = TextureRect.StretchModeEnum.KeepAspectCentered;
                 icon.CustomMinimumSize  = new Vector2(24, 24);
                 icon.SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter;
+                icon.Material           = TileRegistry.CutoutMaterial;
                 vbox.AddChild(icon);
             }
 
@@ -281,5 +322,6 @@ namespace AinSoph.UI
         [Signal] public delegate void SkillSelectedEventHandler(int skillType);
         [Signal] public delegate void RoutesOpenRequestedEventHandler();
         [Signal] public delegate void SleepRequestedEventHandler();
+        [Signal] public delegate void RibRequestedEventHandler();
     }
 }

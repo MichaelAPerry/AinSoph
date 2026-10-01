@@ -18,3 +18,6 @@ obj/
 # OS
 .DS_Store
 Thumbs.db
+
+# Godot editor backup when it upgrades the .csproj
+*.csproj.old

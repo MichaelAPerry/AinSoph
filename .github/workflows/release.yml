@@ -1,0 +1,82 @@
+name: Release
+
+# Builds the Windows installer and the Linux build, with the model, and
+# publishes them as a GitHub Release. Run it by pushing a version tag
+# (git tag v0.1.0 && git push origin v0.1.0) or from the Actions tab.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      # itch.io upload runs only when both are set (Settings → Secrets and variables → Actions)
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_GAME: ${{ vars.ITCH_GAME }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install NSIS and Wine (Wine runs rcedit for the exe icon/version)
+        run: |
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends nsis wine64
+          curl -sSL -o "$HOME/rcedit-x64.exe" https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe
+
+      - name: Install Godot 4.4.1 .NET and export templates
+        run: tools/ci-setup.sh templates
+
+      - name: Download the model (Qwen 2.5 1.5B Instruct, Apache 2.0)
+        run: |
+          curl -sSL -o models/qwen2.5-1.5b.gguf \
+            https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
+
+      - name: Import project and point Godot at rcedit
+        run: |
+          timeout 600 "$GODOT" --headless --editor --quit --path . || true
+          WINE=$(command -v wine64 || echo /usr/lib/wine/wine64)
+          sed -i "s|^export/windows/rcedit = .*|export/windows/rcedit = \"$HOME/rcedit-x64.exe\"|; s|^export/windows/wine = .*|export/windows/wine = \"$WINE\"|" ~/.config/godot/editor_settings-4.4.tres
+
+      - name: Self-test with the real model
+        run: |
+          timeout 900 "$GODOT" --headless --path . -- --selftest --model="$PWD/models/qwen2.5-1.5b.gguf" 2>&1 | tee selftest.log
+          grep -q "SELFTEST: .* 0 failed" selftest.log
+
+      - name: Build Steam folders and the Windows installer
+        env:
+          WINEDEBUG: -all
+        run: tools/package-windows.sh
+
+      - name: Self-test the exported Linux build (catches files missing from the export)
+        run: |
+          timeout 300 build/steam/linux/AinSoph.x86_64 --headless -- --selftest 2>&1 | tee selftest-export.log
+          grep -q "SELFTEST: .* 0 failed" selftest-export.log
+
+      - name: Archive the Linux build
+        run: |
+          VERSION=$(sed -n 's/^config\/version="\(.*\)"/\1/p' project.godot)
+          tar -C build/steam -czf "build/AinSoph-${VERSION}-linux-x86_64.tar.gz" linux
+          ls -la build
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: ${{ github.event_name == 'workflow_dispatch' }}
+          body_path: docs/release-notes.md
+          files: |
+            build/AinSoph-Setup-*.exe
+            build/AinSoph-*-linux-x86_64.tar.gz
+
+      - name: Upload to itch.io
+        if: ${{ env.BUTLER_API_KEY != '' && env.ITCH_GAME != '' && github.event_name == 'push' }}
+        run: tools/upload-itch.sh

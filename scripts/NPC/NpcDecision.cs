@@ -40,7 +40,7 @@ public class NpcDecision
     [JsonPropertyName("memory_updates")]
     public MemoryUpdates? MemoryUpdates { get; set; }
 
-    public NpcState ParsedState => State.ToLowerInvariant() switch
+    public NpcState ParsedState => (State ?? "").ToLowerInvariant() switch
     {
         "moving"   => NpcState.Moving,
         "eating"   => NpcState.Eating,

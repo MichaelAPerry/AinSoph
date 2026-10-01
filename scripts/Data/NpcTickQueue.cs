@@ -31,6 +31,7 @@ public class NpcTickQueue
     private NpcBrain? _currentNpc;
 
     public int QueueDepth   => _queue.Count;
+    public bool IsBusy      => _running;
     public int MaxNpcsInCap => (int)(QueueCap / _estimatedTimePerNpc);
 
     // -------------------------------------------------------------------------
@@ -118,7 +119,8 @@ public class NpcTickQueue
         NpcBrain? npc;
         lock (_lock)
         {
-            if (_queue.Count == 0) return;
+            if (_running || _queue.Count == 0) return;
+            _running = true;
             npc = _queue.First!.Value;
             _queue.RemoveFirst();
             _queued.Remove(npc.NpcId);
@@ -138,12 +140,16 @@ public class NpcTickQueue
         }
         finally
         {
-            // Update timing estimate (rolling average)
+            // Update timing estimate (rolling average) — only from ticks that
+            // actually ran inference; skipped ticks return instantly and would
+            // drag the estimate to zero and blow up the cap
             var elapsed = DateTime.UtcNow - started;
-            _estimatedTimePerNpc = TimeSpan.FromSeconds(
-                (_estimatedTimePerNpc.TotalSeconds * 0.8) + (elapsed.TotalSeconds * 0.2));
+            if (elapsed.TotalSeconds >= 0.5)
+                _estimatedTimePerNpc = TimeSpan.FromSeconds(Math.Max(1.0,
+                    (_estimatedTimePerNpc.TotalSeconds * 0.8) + (elapsed.TotalSeconds * 0.2)));
 
             _currentNpc = null;
+            _running    = false;
 
             // Re-enqueue at the back for the next cycle
             lock (_lock)

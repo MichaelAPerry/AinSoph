@@ -103,13 +103,13 @@ The player can observe this process. The NPC displays a sprite and status while 
 
 ### MODEL
 
-Qwen 2.5 3B. Apache 2.0 license — fully open, compatible with Godot (MIT) and llama.cpp (MIT). Runs on 8GB RAM, CPU-only. Strong instruction following and structured output at low spec.
+Qwen 2.5 1.5B Instruct (Q4_K_M, ~1 GB). Apache 2.0 — fine to bundle in a commercial build, compatible with Godot (MIT) and llama.cpp (MIT). Runs comfortably on 8GB RAM, CPU-only. (The 3B size was used earlier; it is under the Qwen Research License, which restricts commercial use, so it cannot ship on Steam.) Strong instruction following and structured output at low spec.
 
 ---
 
 ### BUILD SYSTEM
 
-.NET SDK alongside Godot's export templates. Required for LLamaSharp — the .NET binding for llama.cpp that connects Qwen 2.5 3B to the game. Enables proper dependency management and CI/CD when the time comes.
+.NET SDK alongside Godot's export templates. Required for LLamaSharp — the .NET binding for llama.cpp that connects Qwen 2.5 1.5B to the game. Enables proper dependency management and CI/CD when the time comes.
 
 ### LLAMA INTEGRATION
 

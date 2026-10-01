@@ -10,6 +10,10 @@ public class Tile
     public int TileY { get; set; } // 0–7 within the cell
 
     public TileSurface Surface  { get; set; }
+
+    // The biome of this tile. Usually the cell's, but borders between biomes
+    // wander across cell lines, so tiles near an edge may belong to a neighbour.
+    public BiomeType    Biome   { get; set; }
     public bool         HasCave { get; set; }
 
     // Items on this tile (item ids)

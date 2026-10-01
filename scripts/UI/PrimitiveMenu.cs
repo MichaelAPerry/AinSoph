@@ -80,8 +80,9 @@ namespace AinSoph.UI
 
             // Position panel near click, nudge away from edges
             var vp   = GetViewport().GetVisibleRect().Size;
-            float px = Mathf.Clamp(screenPos.X - PanelW / 2f, 4f, vp.X - PanelW - 4f);
-            float py = Mathf.Clamp(screenPos.Y - PanelH - 12f, 4f, vp.Y - PanelH - 4f);
+            // Keep on screen; Max-of-Min (not Clamp) so a window smaller than the panel doesn't throw
+            float px = Mathf.Max(4f, Mathf.Min(screenPos.X - PanelW / 2f, vp.X - PanelW - 4f));
+            float py = Mathf.Max(4f, Mathf.Min(screenPos.Y - PanelH - 12f, vp.Y - PanelH - 4f));
             _panel.Position = new Vector2(px, py);
 
             Visible = true;
@@ -132,17 +133,17 @@ namespace AinSoph.UI
             btn.AddThemeStyleboxOverride("pressed",MakeBtnStyle(BtnHover));
 
             // Icon
-            int tileIdx = TileRegistry.StateIconFor(MapSkillToNpcState(skill));
-            var tex     = GD.Load<Texture2D>(TileRegistry.TilePath(tileIdx));
+            var tex = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.SkillIcon(skill)));
             if (tex != null)
             {
                 var icon = new TextureRect();
-                icon.Texture   = tex;
-                icon.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+                icon.Texture     = tex;
+                icon.ExpandMode  = TextureRect.ExpandModeEnum.IgnoreSize;
                 icon.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-                icon.CustomMinimumSize = new Vector2(20, 20);
-                icon.SetAnchorsPreset(Control.LayoutPreset.Center);
-                icon.Position = new Vector2(12, 8);
+                icon.Material    = TileRegistry.CutoutMaterial;
+                icon.MouseFilter = Control.MouseFilterEnum.Ignore;
+                icon.Size        = new Vector2(20, 20);
+                icon.Position    = new Vector2((BtnSize - 20) / 2f, 5);
                 btn.AddChild(icon);
             }
 
@@ -156,6 +157,7 @@ namespace AinSoph.UI
             label.Size     = new Vector2(BtnSize, 14);
             btn.AddChild(label);
 
+            btn.Pressed += () => AinSoph.Audio.Sound.Play("click");
             btn.Pressed += () =>
             {
                 var chosen = skill;
@@ -165,17 +167,6 @@ namespace AinSoph.UI
 
             return btn;
         }
-
-        private static NPC.NpcState MapSkillToNpcState(SkillType skill) => skill switch
-        {
-            SkillType.Move  => NPC.NpcState.Moving,
-            SkillType.See   => NPC.NpcState.Idle,
-            SkillType.Hear  => NPC.NpcState.Idle,
-            SkillType.Talk  => NPC.NpcState.Talking,
-            SkillType.Reap  => NPC.NpcState.Creating,
-            SkillType.Pray  => NPC.NpcState.Praying,
-            _               => NPC.NpcState.Idle
-        };
 
         private static StyleBoxFlat MakePanelStyle()
         {

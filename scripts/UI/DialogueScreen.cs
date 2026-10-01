@@ -68,7 +68,10 @@ namespace AinSoph.UI
             if (ev is InputEventKey key && key.Pressed)
             {
                 if (key.Keycode == Key.Escape)
+                {
                     Close();
+                    GetViewport().SetInputAsHandled(); // don't also open the Esc menu
+                }
                 else if (key.Keycode == Key.Enter || key.Keycode == Key.KpEnter)
                     SubmitInput();
             }
@@ -126,6 +129,18 @@ namespace AinSoph.UI
             _speakerName.Text = name.ToUpper();
         }
 
+        public string SpeechText => _speechLabel.Text;
+
+        /// <summary>Put text in the input box without submitting (demo tour typing).</summary>
+        public void SetInputText(string text) => _inputField.Text = text;
+
+        /// <summary>Submit a line as if the player typed it and pressed Enter.</summary>
+        public void SubmitText(string text)
+        {
+            _inputField.Text = text;
+            SubmitInput();
+        }
+
         public void Close()
         {
             Visible = false;
@@ -139,7 +154,7 @@ namespace AinSoph.UI
             var vp = GetViewport().GetVisibleRect().Size;
             float w = vp.X, h = vp.Y;
             float margin  = 32f;
-            float speechH = 120f;
+            float speechH = 170f;
             float inputH  = 64f;
             float portraitH = h - speechH - inputH - margin * 4;
 
@@ -232,6 +247,9 @@ namespace AinSoph.UI
         {
             ClearPortrait();
             var portrait = CharacterPortraitBuilder.Build(_decanId, _seed);
+            var box      = _portraitViewport.Size;
+            portrait.Position = new Vector2(box.X / 2f,
+                Mathf.Max(0f, (box.Y - CharacterPortraitBuilder.PortraitHeight) / 2f));
             _portraitViewport.AddChild(portrait);
         }
 
@@ -239,20 +257,25 @@ namespace AinSoph.UI
         {
             ClearPortrait();
 
-            // Render altar tile at 8× scale centred in the viewport
+            // Render altar tile at 16× scale centred in the viewport, over a soft halo
+            var centre = new Vector2(_portraitViewport.Size.X / 2f, _portraitViewport.Size.Y / 2f);
+
+            var glow = new Sprite2D();
+            glow.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.AltarTile));
+            glow.Material = TileRegistry.CutoutMaterial;
+            glow.Scale    = Vector2.One * 22;
+            glow.TextureFilter = CanvasItem.TextureFilterEnum.Nearest;
+            glow.Position = centre;
+            glow.Modulate = new Color(0.55f, 0.55f, 1f, 0.25f);
+            _portraitViewport.AddChild(glow);
+
             var sprite = new Sprite2D();
             sprite.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.AltarTile));
+            sprite.Material = TileRegistry.CutoutMaterial;
             sprite.Scale    = Vector2.One * 16;
-            sprite.Position = new Vector2(100, 80);
+            sprite.Position = centre;
+            sprite.TextureFilter = CanvasItem.TextureFilterEnum.Nearest;
             _portraitViewport.AddChild(sprite);
-
-            // Ambient glow suggestion — a second, larger dimmer copy
-            var glow = new Sprite2D();
-            glow.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.MannaTile));
-            glow.Scale    = Vector2.One * 20;
-            glow.Position = new Vector2(100, 80);
-            glow.Modulate = new Color(0.4f, 0.4f, 1f, 0.3f);
-            _portraitViewport.AddChild(glow);
         }
 
         private void ClearPortrait()

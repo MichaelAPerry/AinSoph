@@ -24,6 +24,12 @@ public class WorldGrid
     // Cell access — generates on demand
     // -------------------------------------------------------------------------
 
+    /// <summary>Raised the first time a cell is generated this session.</summary>
+    public event Action<WorldCell>? CellGenerated;
+
+    /// <summary>Starting animals for a cell (see CellGenerator.PlaceAnimals).</summary>
+    public List<AnimalPlacement> PlaceAnimals(WorldCell cell) => _generator.PlaceAnimals(cell);
+
     public WorldCell GetOrGenerate(int gridX, int gridY)
     {
         var key = CellKey(gridX, gridY);
@@ -32,6 +38,7 @@ public class WorldGrid
 
         var cell = _generator.Generate(gridX, gridY);
         _cells[key] = cell;
+        CellGenerated?.Invoke(cell);
         return cell;
     }
 
@@ -102,11 +109,17 @@ public class WorldGrid
             var cell = GetOrGenerate(dx, dy);
             if (!cell.HasCave) continue;
 
-            // Found a cave — place the player within 3 cells of it
-            var startX = dx + new Random().Next(-3, 4);
-            var startY = dy + new Random().Next(-3, 4);
-            GetOrGenerate(startX, startY); // ensure generated
-            return (startX, startY);
+            // Found a cave — place the player within 3 cells of it, on land
+            // (the sea is impassable; a player born in it could never move)
+            var rng = new Random();
+            for (var attempt = 0; attempt < 30; attempt++)
+            {
+                var startX = dx + rng.Next(-3, 4);
+                var startY = dy + rng.Next(-3, 4);
+                if (BiomeData.Get(GetOrGenerate(startX, startY).Biome).Passable)
+                    return (startX, startY);
+            }
+            return (dx, dy); // the cave's own cell — caves are never in the sea
         }
 
         // Fallback — should not happen in practice

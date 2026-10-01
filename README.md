@@ -6,6 +6,18 @@ Ain Soph is a free, open source, persistent, shared world game. It runs on low-s
 
 Nothing phones home. No subscription. No server you don't control.
 
+![Ain Soph demo tour](docs/demo/tour.gif)
+
+*Scripted demo tour — [video](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
+
+> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 28-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+
+## Download
+
+**[Latest release →](https://github.com/MichaelAPerry/AinSoph/releases/latest)** — Windows installer (`AinSoph-Setup-<version>.exe`) and Linux build. Free. Needs a 64-bit CPU and 8 GB of RAM; no graphics card. The AI model is included and runs offline.
+
+Windows may warn that the installer is from an unknown publisher (it isn't code-signed yet): **More info → Run anyway**.
+
 ---
 
 ## What It Is
@@ -230,7 +242,7 @@ Forking is not punished. It is designed for.
 | Language | C# |
 | Build | .NET SDK 8.0 |
 | LLM Runtime | llama.cpp via LLamaSharp |
-| Model | Qwen 2.5 3B (Apache 2.0) |
+| Model | Qwen 2.5 1.5B Instruct, Q4_K_M (~1 GB, Apache 2.0) |
 | Min Hardware | 8 GB RAM, CPU-only, x86_64 |
 | Platforms | Windows, Linux |
 
@@ -246,16 +258,16 @@ Forking is not punished. It is designed for.
 
 ### Model
 
-Download and rename to `qwen2.5-3b.gguf`:
+Download and rename to `qwen2.5-1.5b.gguf`:
 
 ```
-https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf
+https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
 ```
 
 Place it at:
 
 ```
-<project root>/models/qwen2.5-3b.gguf
+<project root>/models/qwen2.5-1.5b.gguf
 ```
 
 This file is in `.gitignore`. Do not commit it.
@@ -268,33 +280,127 @@ This file is in `.gitignore`. Do not commit it.
 
 The model file will be found in `models/` during development. In production builds it is extracted from the PCK on first launch.
 
+No model? The game still runs in demo mode — see [Command-line options](#command-line-options).
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| WASD / arrow keys / left-click | Walk one tile at a time |
+| Left-click an NPC | Open the six primitives on them |
+| Right-click a tile | Primitives on that tile, or on the item lying there (manna, bodies) |
+| Talk | Opens dialogue — type, then Enter or SEND; Esc or LEAVE to close |
+| Reap | Eat an edible item next to you, or attack a being next to you (animals too — a clean animal's body is food) |
+| Pray | Only reaches the Council when you stand at the altar |
+| SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
+| RIB button | Appears once you have earned the rib — name and describe your spouse |
+| ROUTES button | Export / import travellers between worlds |
+| Esc | Menu — fullscreen, music / ambience / effects volume, hints, controls, quit. The world does not pause. |
+
+### Command-line options
+
+Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Project → Project Settings → Editor → Run → Main Run Args**.
+
+| Option | Effect |
+|--------|--------|
+| `--demo` | Scripted NPC and Council voices, no model needed. A few NPCs are placed near you and think every few seconds. |
+| `--model=<path>` | Use any `.gguf` file instead of the bundled model (handy for testing with a small model). |
+| `--demo-tour` | Plays a hands-free walkthrough with captions, then quits. Uses a throwaway world, never your save. Scripted voices unless `--model=` is also given. |
+| `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
+| `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
+| `--selftest` | Runs 28 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
+
+If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
+
+---
+
+## Demos
+
+Everything in [`docs/demo/`](docs/demo/) is produced by the scripted tour:
+
+| | |
+|---|---|
+| ![World](docs/demo/03-npcs.png) | ![Primitives](docs/demo/04-primitives.png) |
+| ![Animals](docs/demo/07-animals.png) | ![The rib](docs/demo/09-rib.png) |
+
+The recorded tour uses scripted voices so it plays the same every time. With the real model (Qwen 2.5 1.5B) it looks like this:
+
+| NPC dialogue | The Council |
+|---|---|
+| ![Dialogue, Qwen 2.5 1.5B](docs/demo/qwen-1.5b-dialogue.png) | ![Council, Qwen 2.5 1.5B](docs/demo/qwen-1.5b-council.png) |
+
+Re-record it (video, GIF and screenshots) with:
+
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-demo.sh
+```
+
+Needs ffmpeg; runs under `xvfb-run` on a headless machine. Add `--model=/path/to/model.gguf` to record with the real LLM.
+
+---
+
+## Code Map
+
+All game code is C# under `scripts/`. There are no hand-built scenes beyond two stubs — `GameRoot` (an autoload) builds everything at runtime.
+
+| Path | What lives there |
+|------|------------------|
+| `scripts/GameRoot.cs` | Boot sequence, save/load, NPC queue pump, player interactions (talk, reap, pray, eat), Council verdicts |
+| `scripts/WorldScene.cs` | The visible world: camera, player sprite, movement, input, NPC nodes |
+| `scripts/World/` | Grid of cells, deterministic cell generation, biomes, caves, altar, manna, animal species, survival clock, kill resolution |
+| `scripts/NPC/` | `NpcBrain` (think tick → LLM → decision), prompts, memory slots, the 72 decans, animals |
+| `scripts/Council/` | The Triune Council: three seats, three LLM calls, 2-of-3 vote |
+| `scripts/LLM/LlmRunner.cs` | llama.cpp via LLamaSharp — ChatML prompts for Qwen, one inference at a time, tolerant JSON parsing |
+| `scripts/LLM/DemoResponder.cs` | Scripted replies used when no model is loaded (demo mode) |
+| `scripts/LLM/ContentFilter.cs` | Prompt rule + word-list filter (`data/blocklist.txt`) on everything the AI says |
+| `scripts/Audio/Sound.cs` | Music, ambience and effects on their own buses (`assets/audio/`, made by `tools/make-sounds.py`) |
+| `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
+| `scripts/Demo/SelfTest.cs` | `--selftest`: 28 automated checks of the whole loop, exit code 0/1 |
+| `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
+| `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
+| `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
+| `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
+| `tools/build-steam.sh` | Steam-ready Windows and Linux folders in `build/steam/` |
+| `tools/package-windows.sh` | Windows installer `build/AinSoph-Setup-<version>.exe` (NSIS script in `tools/installer/`) |
+| `.github/workflows/` | CI (build + self-test on every push) and Release (installer + Linux build on a `v*` tag) |
+
+Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/AinSoph` on Linux (`saves/world/`, `settings.cfg`, `logs/`). Delete `saves/world` to start a new world.
+
+---
+
+## Project Status
+
+**Works now:**
+- **World** — generation (the same world every launch for a seed), fog of war, biomes, caves, the hidden altar, morning manna.
+- **Survival on real time** — hunger and sleep, warnings, death, safe sleep in caves. Saved: time away counts, and logging out is sleeping where you stand.
+- **People** — four founding travellers in every new world; NPCs that think, move, talk in character, remember, and take their creations to the Council; dialogue.
+- **Animals** — 30 species from ITEMS.md; they wander, eat manna, hunt and flee; clean ones are food.
+- **The rib** — earned after a week of play, named and described by you; weekly children with lineage.
+- **The Council** — three seats, parables, 2-of-3 votes; approved skills, items and rules enter the world, and rules become laws every NPC lives by.
+- **Routes** — send travellers to another world and receive theirs.
+- **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
+
+**Not yet:** controller / Steam Deck input, and a full real-week playthrough on the shipped model. See [STEAM.md](STEAM.md) for the release checklist.
+
 ---
 
 ## Building a Distributable
 
-The shipped game is a single file. The AI model (~1.9 GB) is bundled inside the PCK. On first launch the game extracts it to the OS user data directory and boots. Subsequent launches skip extraction entirely.
+Needs the Godot 4.4.1 .NET export templates and `models/qwen2.5-1.5b.gguf`. For Steam:
 
-### Steps
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/build-steam.sh
+```
 
-1. Place `qwen2.5-3b.gguf` in `models/` (see above)
-2. Open the project in Godot 4.4
-3. **Build → Build Solution**
-4. **Project → Export**
-5. Select **Windows Desktop** or **Linux/X11**
-6. Click **Export Project**
+This produces `build/steam/windows/` and `build/steam/linux/`. Each is a folder (the executable, a `data_AinSoph_*` folder with the .NET and llama.cpp libraries, and `models/`), about 1.3 GB. The plain **Windows Desktop** / **Linux/X11** presets bundle the model inside the game package and extract it on first launch instead.
 
-Output lands in `build/windows/AinSoph.exe` or `build/linux/AinSoph.x86_64`.
+For a Windows installer — one `AinSoph-Setup-0.1.0.exe` that installs the game, adds Start-menu and desktop shortcuts, and an uninstaller:
 
-### First Launch Behavior
+```
+GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/package-windows.sh
+```
 
-The game detects that the model has not been extracted yet and shows a progress screen. Extraction takes 15–30 seconds depending on disk speed. After that, the game boots normally on every subsequent launch.
-
-Extraction destination:
-
-| OS | Path |
-|----|------|
-| Windows | `%APPDATA%\Godot\app_userdata\Ain Soph\models\` |
-| Linux | `~/.local/share/godot/app_userdata/Ain Soph/models/` |
+Full details in [BUILD.md](BUILD.md); the road to release in [STEAM.md](STEAM.md).
 
 ---
 
@@ -312,13 +418,20 @@ Extraction destination:
 | [COUNCIL.md](COUNCIL.md) | The Triune Council and its prompts |
 | [TECH.md](TECH.md) | All technical decisions |
 | [BUILD.md](BUILD.md) | Full build instructions |
+| [STEAM.md](STEAM.md) | What is ready for Steam and what is left |
 | [data/ain_soph_72.json](data/ain_soph_72.json) | The 72 NPC personality seeds |
 
 ---
 
-## License
+## Licenses
 
-MIT.
+**Game code:** MIT — see [LICENSE](LICENSE).
+
+**Art:** [Kenney](https://kenney.nl) 1-bit pack and Modular Characters, CC0 (`assets/sprites/*/LICENSE.txt`).
+
+**Runtime:** [LLamaSharp](https://github.com/SciSharp/LLamaSharp) and [llama.cpp](https://github.com/ggml-org/llama.cpp), both MIT. [Godot](https://godotengine.org), MIT.
+
+**Model:** [Qwen 2.5 1.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF), Apache 2.0 — fine to bundle in a commercial build. (Ain Soph used the 3B size before; that one is under the Qwen Research License, which restricts commercial use.) The model is not in this repository.
 
 The game is free. The world can be forked. Forking is not punished. It is designed for.
 

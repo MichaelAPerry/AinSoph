@@ -41,6 +41,8 @@ public class SaveManager
     private DateTime _lastSaveUtc = DateTime.MinValue;
     private static readonly TimeSpan SaveInterval = TimeSpan.FromMinutes(5);
 
+    public string SaveDirectory => _saveDir;
+
     public SaveManager(string saveDir)
     {
         _saveDir  = saveDir;
@@ -118,6 +120,15 @@ public class SaveManager
     // NPCs
     // -------------------------------------------------------------------------
 
+    public void SaveAnimals(AnimalsSaveData data) =>
+        WriteJson(Path.Combine(_saveDir, "animals.json"), data);
+
+    public AnimalsSaveData? LoadAnimals()
+    {
+        var path = Path.Combine(_saveDir, "animals.json");
+        return File.Exists(path) ? ReadJson<AnimalsSaveData>(path) : null; // none yet in a new world
+    }
+
     public void SaveNpc(NpcSaveData data) =>
         WriteJson(NpcPath(data.Id), data);
 
@@ -135,10 +146,19 @@ public class SaveManager
 
     public IEnumerable<NpcSaveData> LoadAllNpcs()
     {
-        foreach (var file in Directory.EnumerateFiles(_npcsDir, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(_npcsDir, "*.json").ToList())
         {
             var data = ReadJson<NpcSaveData>(file);
-            if (data is not null) yield return data;
+            if (data is null) continue;
+
+            // Older saves named files after raw ids ("spouse:…") — move to the safe name
+            var safe = NpcPath(data.Id);
+            if (!string.Equals(Path.GetFullPath(file), Path.GetFullPath(safe), StringComparison.Ordinal))
+            {
+                try { File.Move(file, safe, overwrite: true); }
+                catch (Exception ex) { GD.PrintErr($"SaveManager: could not rename {file}: {ex.Message}"); }
+            }
+            yield return data;
         }
     }
 
@@ -203,10 +223,24 @@ public class SaveManager
         Path.Combine(_cellsDir, $"{x},{y}.json");
 
     private string NpcPath(string npcId) =>
-        Path.Combine(_npcsDir, $"{npcId}.json");
+        Path.Combine(_npcsDir, $"{SafeFileName(npcId)}.json");
 
     private string ItemPath(string itemId) =>
-        Path.Combine(_itemsDir, $"{itemId.Replace("/", "_")}.json");
+        Path.Combine(_itemsDir, $"{SafeFileName(itemId)}.json");
+
+    /// <summary>
+    /// Ids contain ':' ("spouse:…", "npc:demo:…"). On Windows a ':' in a file name
+    /// writes to an NTFS alternate data stream instead of a file, so saves vanish.
+    /// Replace every character that is invalid on any desktop OS.
+    /// </summary>
+    public static string SafeFileName(string id)
+    {
+        var chars = id.ToCharArray();
+        for (int i = 0; i < chars.Length; i++)
+            if (chars[i] is ':' or '/' or '\\' or '*' or '?' or '"' or '<' or '>' or '|' || chars[i] < 32)
+                chars[i] = '_';
+        return new string(chars);
+    }
 
     private void WriteJson<T>(string path, T data)
     {

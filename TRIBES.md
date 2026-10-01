@@ -67,4 +67,6 @@ Tribes have no formal political structure imposed by the engine. Players and NPC
 
 ### TECHNICAL NOTE FOR CLAUDE
 
-The rib file schema and progeny file schema are not yet built. Build them when Michael decides what fields are needed beyond what is documented here. Do not add fields that are not in this document without asking.
+What is saved today (in `player.json`, only what this document already describes): accumulated play hours, whether the rib is earned, the spouse's id, the progeny ids, and when the last progeny was born. The spouse and each progeny are ordinary NPC files with their name and a `lineage` list (`origin:<player id>`, then intermarriages and migrations appended).
+
+A dedicated rib file schema and progeny file schema are still not built. Build them when Michael decides what fields are needed beyond what is documented here. Do not add fields that are not in this document without asking.

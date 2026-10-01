@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 using AinSoph.Data;
 using AinSoph.NPC;
 using AinSoph.Player;
@@ -29,6 +30,17 @@ namespace AinSoph
         public PlayerCharacter  Player      { get; set; }
         public SaveManager      SaveMgr     { get; set; }
         public string           AltarCellId { get; set; }
+        public Vector2I         AltarTile   { get; set; }
+        public WorldItemRegistry? Items     { get; set; }
+
+        /// <summary>True while a full-screen overlay (e.g. character creation) owns the keyboard.</summary>
+        public bool             InputLocked { get; set; }
+
+        /// <summary>The Esc menu is open — the world keeps running but the player doesn't move.</summary>
+        public bool             MenuOpen    { get; set; }
+
+        /// <summary>The player pressed RIB.</summary>
+        public event System.Action? RibRequested;
 
         // ── Child nodes ───────────────────────────────────────────────────
         private Camera2D        _camera;
@@ -40,6 +52,11 @@ namespace AinSoph
         private RoutesScreen    _routesScreen;
         private Label           _worldTextLabel;
         private float           _worldTextTimer;
+        private Sprite2D        _playerSprite;
+        private Label           _playerLabel;
+        private float           _moveCooldown;
+
+        private const float MoveRepeatSeconds = 0.14f;
 
         // ── NPC tracking ──────────────────────────────────────────────────
         private readonly Dictionary<string, NpcWorldNode> _npcNodes = new();
@@ -58,13 +75,12 @@ namespace AinSoph
             _renderer.Grid        = Grid;
             _renderer.Clock       = Clock;
             _renderer.AltarCellId = AltarCellId;
+            _renderer.AltarTile   = AltarTile;
+            _renderer.Items       = Items;
 
             // Set initial player position
             if (Player != null)
-            {
-                _playerTile = new Vector2I(Player.TileX, Player.TileY);
-                _renderer.Refresh(_playerTile);
-            }
+                MovePlayerTo(new Vector2I(Player.TileX, Player.TileY));
 
             // Wire HUD skills
             if (Player != null)
@@ -75,7 +91,11 @@ namespace AinSoph
 
         public override void _Process(double delta)
         {
+            _moveCooldown -= (float)delta;
             HandleMovementInput();
+
+            if (Player != null && _playerLabel.Text != Player.Name)
+                _playerLabel.Text = Player.Name;
 
             if (_worldTextTimer > 0f)
             {
@@ -101,8 +121,68 @@ namespace AinSoph
             }
 
             var state = System.Enum.TryParse<NpcState>(data.State, true, out var s) ? s : NpcState.Idle;
-            node.Setup(data.Id, data.Name, data.Id.GetHashCode(), isAnimal: false, state);
+            node.Setup(data.Id, data.Name, TileRegistry.StableHash(data.Id), isAnimal: false, state);
             node.SetTilePosition(data.TileX, data.TileY);
+            node.Visible = _renderer.TileVisible(data.TileX, data.TileY);
+        }
+
+        /// <summary>Spawn or move an animal's on-map node. Animals share the NPC node type and click handling.</summary>
+        public void UpsertAnimal(string id, string species, int glyph, Color tint, int tileX, int tileY)
+        {
+            if (!_npcNodes.TryGetValue(id, out var node))
+            {
+                node = new NpcWorldNode();
+                node.EntityClicked += OnEntityClicked;
+                _entityLayer.AddChild(node);
+                _npcNodes[id] = node;
+                node.Setup(id, species, TileRegistry.StableHash(id), isAnimal: true, NpcState.Idle);
+                node.SetBody(glyph, tint);
+            }
+            node.SetTilePosition(tileX, tileY);
+            node.Visible = _renderer.TileVisible(tileX, tileY);
+        }
+
+        /// <summary>Move an NPC's on-map node to a new tile.</summary>
+        public void MoveNpc(string npcId, int tileX, int tileY)
+        {
+            if (_npcNodes.TryGetValue(npcId, out var node))
+            {
+                node.SetTilePosition(tileX, tileY);
+                node.Visible = _renderer.TileVisible(tileX, tileY);
+            }
+        }
+
+        /// <summary>Float a line of speech above an NPC.</summary>
+        public void ShowNpcSpeech(string npcId, string text)
+        {
+            if (_npcNodes.TryGetValue(npcId, out var node))
+            {
+                node.ShowSpeech(text);
+                if (node.Visible) AinSoph.Audio.Sound.Play("speech", 0.15f);
+            }
+        }
+
+        /// <summary>Redraw the map around the player (e.g. after manna spawns or an item is eaten).</summary>
+        public void RefreshMap()
+        {
+            _renderer.Refresh(_playerTile);
+            UpdateEntityVisibility();
+        }
+
+        /// <summary>Beings under full fog are hidden — you only see what your See reaches.</summary>
+        private void UpdateEntityVisibility()
+        {
+            foreach (var node in _npcNodes.Values)
+                node.Visible = _renderer.TileVisible(node.Tile.X, node.Tile.Y);
+        }
+
+        public Vector2I PlayerTile => _playerTile;
+
+        private NpcWorldNode? NpcAt(Vector2I tile)
+        {
+            foreach (var node in _npcNodes.Values)
+                if (node.Tile == tile) return node;
+            return null;
         }
 
         /// <summary>Remove an NPC from the map.</summary>
@@ -126,7 +206,7 @@ namespace AinSoph
 
         private void HandleMovementInput()
         {
-            if (_dialogue.Visible) return;
+            if (_dialogue.Visible || InputLocked || MenuOpen || _moveCooldown > 0f) return;
 
             var dir = Vector2I.Zero;
             if (Input.IsKeyPressed(Key.D) || Input.IsActionPressed("ui_right")) dir.X =  1;
@@ -135,42 +215,43 @@ namespace AinSoph
             else if (Input.IsKeyPressed(Key.W) || Input.IsActionPressed("ui_up"))   dir.Y = -1;
 
             if (dir != Vector2I.Zero)
+            {
+                _moveCooldown = MoveRepeatSeconds;
                 ApplyPlayerMove(_playerTile + dir);
+            }
         }
 
         public override void _UnhandledInput(InputEvent ev)
         {
-            if (_dialogue.Visible) return;
+            if (_dialogue.Visible || InputLocked || MenuOpen) return;
+            if (ev is not InputEventMouseButton mb || !mb.Pressed) return;
 
-            if (ev is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left && mb.Pressed)
+            var worldPos   = GetGlobalMousePosition();
+            var targetTile = new Vector2I(Mathf.FloorToInt(worldPos.X / 32f), Mathf.FloorToInt(worldPos.Y / 32f));
+            var npc        = NpcAt(targetTile);
+
+            if (mb.ButtonIndex == MouseButton.Left)
             {
-                var viewport   = GetViewport().GetVisibleRect().Size;
-                var camOffset  = _camera.GlobalPosition - viewport / 2f;
-                var worldPos   = mb.Position + camOffset;
-                var targetTile = new Vector2I((int)(worldPos.X / 32), (int)(worldPos.Y / 32));
-
-                // Check if click landed on an NPC — NpcWorldNode handles its own click signal,
-                // so we only open the tile menu here if no entity was under the cursor.
-                // A simple way: open tile menu on right-click, move on left-click.
-                // Per design: click opens primitive menu on any target including tiles.
-                // We use right-click for tile interaction; left-click still moves.
-                if (mb.ButtonIndex == MouseButton.Left)
-                {
-                    StepToward(targetTile);
-                }
+                // Left-click an NPC opens the primitive menu on them; anywhere else walks
+                if (npc != null) OnEntityClicked(npc.NpcId);
+                else             StepToward(targetTile);
             }
-
-            if (ev is InputEventMouseButton rbmb && rbmb.ButtonIndex == MouseButton.Right && rbmb.Pressed)
+            else if (mb.ButtonIndex == MouseButton.Right)
             {
-                var viewport  = GetViewport().GetVisibleRect().Size;
-                var camOffset = _camera.GlobalPosition - viewport / 2f;
-                var worldPos  = rbmb.Position + camOffset;
-                var tileX     = (int)(worldPos.X / 32);
-                var tileY     = (int)(worldPos.Y / 32);
-                var cellCoord = TileToCell(new Vector2I(tileX, tileY));
+                // Right-click: NPC, then item on the tile, then the tile itself
+                if (npc != null) { OnEntityClicked(npc.NpcId); return; }
+
+                var item = Items?.NearTile(targetTile.X, targetTile.Y, radius: 0).FirstOrDefault();
+                if (item != null)
+                {
+                    _primitiveMenu.Open(item.Id, item.Name, mb.Position);
+                    return;
+                }
+
+                var cellCoord = TileToCell(targetTile);
                 var cell      = Grid?.GetOrGenerate(cellCoord.X, cellCoord.Y);
                 var biome     = cell?.Biome.ToString() ?? "ground";
-                OnTileClicked(rbmb.Position, biome);
+                OnTileClicked(mb.Position, biome);
             }
         }
 
@@ -189,6 +270,16 @@ namespace AinSoph
         {
             _primitiveMenu?.Close();
 
+            // The sea is impassable on foot (per tile — coastlines cross cell lines)
+            var destTile = TileAt(newTile);
+            var hereTile = TileAt(_playerTile);
+            bool stranded = hereTile != null && !BiomeData.Get(hereTile.Biome).Passable;
+            if (destTile != null && !BiomeData.Get(destTile.Biome).Passable && !stranded)
+            {
+                ShowWorldText("The sea will not carry you.");
+                return;
+            }
+
             // Cave exit — if leaving a cave tile
             if (Player != null && WasOnCaveTile())
             {
@@ -196,29 +287,23 @@ namespace AinSoph
                 Player.Survival.ExitCave();
             }
 
-            _playerTile = newTile;
-
-            if (Player != null)
-            {
-                Player.TileX = newTile.X;
-                Player.TileY = newTile.Y;
-            }
+            MovePlayerTo(newTile);
+            AinSoph.Audio.Sound.Play("step", 0.12f);
 
             // Cave entry — if landing on a cave tile
-            if (Player != null)
+            if (Player != null && TileAt(_playerTile)?.HasCave == true)
             {
-                var cell = Grid?.GetOrGenerate(_playerTile.X / 8, _playerTile.Y / 8);
-                var tile = cell?.GetTile(_playerTile.X % 8, _playerTile.Y % 8);
-                if (tile?.HasCave == true)
+                bool claimed = GameRoot.TryClaimCave(_playerTile.X, _playerTile.Y, Player.Id);
+                if (claimed)
                 {
-                    bool claimed = GameRoot.TryClaimCave(_playerTile.X, _playerTile.Y, Player.Id);
-                    if (claimed)
-                        Player.Survival.EnterCave();
+                    Player.Survival.EnterCave();
+                    ShowWorldText("You enter the cave. It is yours while you stay.");
+                }
+                else
+                {
+                    ShowWorldText("Someone already shelters in this cave.");
                 }
             }
-
-            _renderer.Refresh(newTile);
-            _camera.Position = new Vector2(newTile.X * 32, newTile.Y * 32);
         }
 
         // ── Entity / tile click → primitive menu ─────────────────────────
@@ -259,6 +344,19 @@ namespace AinSoph
         /// <summary>Update the speech box with a new LLM reply.</summary>
         public void SetDialogueSpeech(string text) => _dialogue.SetSpeech(text);
 
+        // ── Scripted control (demo tour) ──────────────────────────────────
+
+        public void Step(Vector2I dir) => ApplyPlayerMove(_playerTile + dir);
+        public void SetRibAvailable(bool available) => _hud.SetRibAvailable(available);
+        public void SetSurvivalStatus(string text, bool urgent) => _hud.SetStatus(text, urgent);
+        public bool DialogueOpen => _dialogue.Visible;
+        public string DialogueSpeech => _dialogue.SpeechText;
+        public void TypeDialogue(string text)   => _dialogue.SetInputText(text);
+        public void SubmitDialogue(string text) => _dialogue.SubmitText(text);
+        public void CloseDialogue()             => _dialogue.Close();
+        public void OpenMenuOn(string npcId)    => OnEntityClicked(npcId);
+        public void CloseMenu()                 => _primitiveMenu.Close();
+
         /// <summary>Open the altar prayer screen.</summary>
         public void OpenAltar(System.Action<string> onSubmit) => _dialogue.OpenAltar(onSubmit);
 
@@ -275,8 +373,19 @@ namespace AinSoph
         public void MovePlayerTo(Vector2I tile)
         {
             _playerTile = tile;
-            if (_camera != null)
-                _camera.GlobalPosition = new Vector2(tile.X * 32 + 16, tile.Y * 32 + 16);
+
+            if (Player != null)
+            {
+                Player.TileX = tile.X;
+                Player.TileY = tile.Y;
+                var cell = TileToCell(tile);
+                Player.CellId = $"{cell.X},{cell.Y}";
+            }
+
+            _playerSprite.Position = new Vector2(tile.X * 32 + 16, tile.Y * 32 + 16);
+            _playerLabel.Position  = new Vector2(tile.X * 32 - 34, tile.Y * 32 + 32);
+            _renderer.Refresh(tile); // also centres the camera
+            UpdateEntityVisibility();
         }
 
         // ── Survival events ───────────────────────────────────────────────
@@ -297,7 +406,27 @@ namespace AinSoph
 
             _entityLayer = new Node2D();
             _entityLayer.Name = "EntityLayer";
+            _entityLayer.ZIndex = 5;
             AddChild(_entityLayer);
+
+            // The player — drawn above NPCs, with a warm name label
+            _playerSprite = new Sprite2D();
+            _playerSprite.Name     = "Player";
+            _playerSprite.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.PlayerTile));
+            _playerSprite.Scale    = Vector2.One * 4f;
+            _playerSprite.Material = TileRegistry.CutoutMaterial;
+            _playerSprite.ZIndex   = 6;
+            AddChild(_playerSprite);
+
+            _playerLabel = new Label();
+            _playerLabel.Size     = new Vector2(100, 14);
+            _playerLabel.ZIndex   = 6;
+            _playerLabel.HorizontalAlignment = HorizontalAlignment.Center;
+            _playerLabel.AddThemeColorOverride("font_color", new Color(1f, 0.85f, 0.4f));
+            _playerLabel.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0));
+            _playerLabel.AddThemeConstantOverride("outline_size", 4);
+            _playerLabel.AddThemeFontSizeOverride("font_size", 10);
+            AddChild(_playerLabel);
 
             _hud = new HUD();
             _hud.Name = "HUD";
@@ -323,6 +452,9 @@ namespace AinSoph
 
             _hud.Connect(HUD.SignalName.SleepRequested,
                 Callable.From(OnSleepRequested));
+
+            _hud.Connect(HUD.SignalName.RibRequested,
+                Callable.From(() => RibRequested?.Invoke()));
 
             // World text — oblique/environmental responses, fades out above action bar
             var hudLayer = new CanvasLayer();
@@ -363,12 +495,15 @@ namespace AinSoph
                 tile.Y < 0 ? (tile.Y - 7) / 8 : tile.Y / 8
             );
 
-        private bool WasOnCaveTile()
+        private bool WasOnCaveTile() => TileAt(_playerTile)?.HasCave == true;
+
+        /// <summary>The world tile at a global tile position — handles negative coordinates.</summary>
+        private Tile? TileAt(Vector2I tile)
         {
-            if (Grid == null) return false;
-            var cell = Grid.GetIfLoaded(_playerTile.X / 8, _playerTile.Y / 8);
-            var tile = cell?.GetTile(_playerTile.X % 8, _playerTile.Y % 8);
-            return tile?.HasCave == true;
+            if (Grid == null) return null;
+            var c    = TileToCell(tile);
+            var cell = Grid.GetOrGenerate(c.X, c.Y);
+            return cell.GetTile(tile.X - c.X * 8, tile.Y - c.Y * 8);
         }
 
         private void OnSleepRequested()

@@ -24,13 +24,24 @@ namespace AinSoph.UI
         public WorldGrid  Grid        { get; set; }
         public WorldClock Clock       { get; set; }
         public string     AltarCellId { get; set; } // e.g. "3,-2"
+        public Vector2I   AltarTile   { get; set; } // tile within the altar cell (0–7)
+        public WorldItemRegistry? Items { get; set; }
 
         // Camera follows the player
         private Camera2D _camera;
 
-        // Tile pool: keyed by grid position string for fast lookup
-        private readonly Dictionary<Vector2I, Sprite2D> _pool = new();
+        // Tile pools: ground glyph + landmark/item overlay, keyed by world tile
+        private readonly Dictionary<Vector2I, Sprite2D> _pool    = new();
+        private readonly Dictionary<Vector2I, Sprite2D> _overlay = new();
         private readonly Dictionary<int, Texture2D>     _texCache = new();
+
+        private Vector2I _player;
+        private float    _clearRadius = -1f; // not yet refreshed: nothing visible
+
+        /// <summary>Whether a being on this tile can be seen — inside sight or its soft edge.</summary>
+        public bool TileVisible(int tileX, int tileY) =>
+            _clearRadius >= 0 &&
+            new Vector2(tileX - _player.X, tileY - _player.Y).Length() <= _clearRadius + EdgeBand * 0.6f;
 
         public override void _Ready()
         {
@@ -43,16 +54,28 @@ namespace AinSoph.UI
             if (Grid == null) return;
 
             var playerCell = TileToCell(playerTile);
-            bool isNight   = Clock != null && WorldClock.IsNight();
+            _player = playerTile;
 
-            // Calculate fog for all cells in view range
-            var fogMap = FogOfWar.Calculate(playerCell.X, playerCell.Y, isNight, Grid);
-            var fogLookup = new Dictionary<string, FogOfWar.TileVisibility>();
-            foreach (var f in fogMap)
-                fogLookup[$"{f.GridX},{f.GridY}"] = f.Visibility;
+            // Sight is a circle: 3 cells by day, 1 by night (WORLD.md), with a
+            // soft edge band where biomes and landmarks still show, dimmed
+            _clearRadius = WorldClock.VisionRange() * CellTiles + CellTiles / 2f;
+
+            // Items by tile, for the overlay pass
+            var itemTiles = new Dictionary<Vector2I, int>();
+            if (Items != null)
+            {
+                foreach (var item in Items.All)
+                {
+                    var pos  = new Vector2I(item.TileX, item.TileY);
+                    var tile = item.Type == "body" ? TileRegistry.BodyTile : TileRegistry.MannaTile;
+                    if (!itemTiles.ContainsKey(pos) || tile == TileRegistry.BodyTile)
+                        itemTiles[pos] = tile;
+                }
+            }
 
             // Mark all pooled sprites as unused
-            foreach (var s in _pool.Values) s.Visible = false;
+            foreach (var s in _pool.Values)    s.Visible = false;
+            foreach (var s in _overlay.Values) s.Visible = false;
 
             // Render cells in view
             for (int cx = playerCell.X - ViewRadius; cx <= playerCell.X + ViewRadius; cx++)
@@ -60,25 +83,20 @@ namespace AinSoph.UI
                 for (int cy = playerCell.Y - ViewRadius; cy <= playerCell.Y + ViewRadius; cy++)
                 {
                     var cell = Grid.GetOrGenerate(cx, cy);
-                    var vis  = fogLookup.TryGetValue($"{cx},{cy}", out var v)
-                               ? v
-                               : FogOfWar.TileVisibility.Fog;
-
                     bool isAltar = AltarCellId == cell.CellId;
-                    DrawCell(cell, vis, isAltar);
+                    DrawCell(cell, isAltar, itemTiles);
                 }
             }
 
             // Move camera to player world position
             if (_camera != null)
-                _camera.GlobalPosition = TileToWorld(playerTile);
+                _camera.GlobalPosition = TileToWorld(playerTile) + new Vector2(TileSize / 2f, TileSize / 2f);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────
 
-        private void DrawCell(WorldCell cell, FogOfWar.TileVisibility vis, bool isAltar)
+        private void DrawCell(WorldCell cell, bool isAltar, Dictionary<Vector2I, int> itemTiles)
         {
-            int[] groundTiles = TileRegistry.GroundTilesFor(cell.Biome);
 
             for (int tx = 0; tx < CellTiles; tx++)
             {
@@ -88,45 +106,99 @@ namespace AinSoph.UI
                         cell.GridX * CellTiles + tx,
                         cell.GridY * CellTiles + ty
                     );
+                    var tile     = cell.GetTile(tx, ty);
+                    var material = TileRegistry.BlendedGroundMaterial;
+                    var light    = Light(tilePos);
+                    var ground   = GroundColor(tilePos) * light;
+                    var modulate = new Color(ground.R, ground.G, ground.B, light);
+                    bool fogged  = light <= TileRegistry.FogColor.R + 0.001f;
 
-                    // Pick tile variant deterministically
-                    int variant  = Math.Abs(tilePos.X * 31 + tilePos.Y * 17) % groundTiles.Length;
-                    int tileIdx  = groundTiles[variant];
-
-                    // Cave tile override (centre of cell)
-                    if (cell.HasCave && tx == 3 && ty == 3)
-                        tileIdx = TileRegistry.CaveTile;
-
-                    // Altar tile override
-                    if (isAltar && tx == 4 && ty == 4)
-                        tileIdx = TileRegistry.AltarTile;
-
-                    var sprite = GetOrCreateTile(tilePos);
-                    sprite.Texture  = LoadTile(tileIdx);
-                    sprite.Position = TileToWorld(tilePos);
-                    sprite.Scale    = Vector2.One * (TileSize / 8f); // source tiles are 8px
-                    sprite.Modulate = FogModulate(vis);
+                    // Ground: the tile's surface glyph on the biome's ground colour
+                    int variant = Math.Abs(tilePos.X * 31 + tilePos.Y * 17);
+                    var sprite  = GetOrCreate(_pool, tilePos, z: 0);
+                    sprite.Texture  = LoadTile(TileRegistry.SurfaceTile(tile.Surface, variant));
+                    sprite.Material = material;
+                    sprite.Modulate = modulate;
                     sprite.Visible  = true;
+
+                    // Overlay: altar > cave > items. Hidden under full fog.
+                    int overlay = -1;
+                    if (isAltar && tx == AltarTile.X && ty == AltarTile.Y)
+                        overlay = TileRegistry.AltarTile;
+                    else if (tile.HasCave)
+                        overlay = TileRegistry.CaveTile;
+                    else if (!fogged && itemTiles.TryGetValue(tilePos, out var it))
+                        overlay = it;
+
+                    if (overlay >= 0)
+                    {
+                        var o = GetOrCreate(_overlay, tilePos, z: 1);
+                        o.Texture  = LoadTile(overlay);
+                        o.Material = material;
+                        o.Modulate = modulate;
+                        o.Visible  = true;
+                    }
                 }
             }
         }
 
-        private static Color FogModulate(FogOfWar.TileVisibility vis) => vis switch
-        {
-            FogOfWar.TileVisibility.Clear => TileRegistry.ClearColor,
-            FogOfWar.TileVisibility.Edge  => TileRegistry.EdgeColor,
-            _                             => TileRegistry.FogColor,
-        };
+        // Blended ground colour per world tile — deterministic, so cached for good
+        private readonly Dictionary<Vector2I, Color> _groundCache = new();
 
-        private Sprite2D GetOrCreateTile(Vector2I tilePos)
+        /// <summary>
+        /// A tile's ground colour, feathered with its neighbours: the tile counts
+        /// double, the eight around it once each, so where two biomes meet the
+        /// colour steps across a tile or two instead of a hard line.
+        /// </summary>
+        private Color GroundColor(Vector2I tile)
         {
-            if (_pool.TryGetValue(tilePos, out var existing))
+            if (_groundCache.TryGetValue(tile, out var cached)) return cached;
+            float r = 0, g = 0, b = 0, w = 0;
+            for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                float weight = dx == 0 && dy == 0 ? 2f : 1f;
+                var c = TileRegistry.GroundColorFor(BiomeOf(tile.X + dx, tile.Y + dy));
+                r += c.R * weight; g += c.G * weight; b += c.B * weight; w += weight;
+            }
+            var col = new Color(r / w, g / w, b / w);
+            _groundCache[tile] = col;
+            return col;
+        }
+
+        private BiomeType BiomeOf(int tx, int ty)
+        {
+            var c = TileToCell(new Vector2I(tx, ty));
+            return Grid.GetOrGenerate(c.X, c.Y).GetTile(tx - c.X * CellTiles, ty - c.Y * CellTiles).Biome;
+        }
+
+        private const float EdgeBand = 7f; // tiles of soft falloff beyond clear sight
+
+        /// <summary>Brightness of a tile: 1 inside sight, easing down through the edge band to fog.</summary>
+        private float Light(Vector2I tile)
+        {
+            float d = new Vector2(tile.X - _player.X, tile.Y - _player.Y).Length();
+            if (d <= _clearRadius) return 1f;
+            float t = Mathf.Clamp((d - _clearRadius) / EdgeBand, 0f, 1f);
+            float edge = TileRegistry.EdgeColor.R, fog = TileRegistry.FogColor.R;
+            // ease from full light to the edge tone, then drop to fog at the far side
+            return t < 0.75f
+                ? Mathf.Lerp(1f, edge, Mathf.SmoothStep(0f, 1f, t / 0.75f))
+                : Mathf.Lerp(edge, fog, Mathf.SmoothStep(0f, 1f, (t - 0.75f) / 0.25f));
+        }
+
+        private Sprite2D GetOrCreate(Dictionary<Vector2I, Sprite2D> pool, Vector2I tilePos, int z)
+        {
+            if (pool.TryGetValue(tilePos, out var existing))
                 return existing;
 
             var sprite = new Sprite2D();
             sprite.Centered = false;
+            sprite.Position = TileToWorld(tilePos);
+            sprite.Scale    = Vector2.One * (TileSize / 8f); // source tiles are 8px
+            sprite.ZIndex   = z;
             AddChild(sprite);
-            _pool[tilePos] = sprite;
+            pool[tilePos] = sprite;
             return sprite;
         }
 

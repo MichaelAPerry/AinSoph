@@ -9,7 +9,7 @@ The Triune Council is the automated governance body of Ain Soph. Every submissio
 
 Three seats. All three vote on every submission. Pass condition: 2 of 3.
 
-The council runs as a single Qwen 2.5 3B instance on llama.cpp, called sequentially three times — once per seat, each with its own system prompt. One instance, three passes. The votes are collected and resolved after all three respond.
+The council runs as a single Qwen 2.5 1.5B instance on llama.cpp, called sequentially three times — once per seat, each with its own system prompt. One instance, three passes. The votes are collected and resolved after all three respond.
 
 ---
 
