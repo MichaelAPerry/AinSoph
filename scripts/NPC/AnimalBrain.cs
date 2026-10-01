@@ -56,7 +56,9 @@ public class AnimalBrain
         TileX      = tileX;
         TileY      = tileY;
         Survival   = new SurvivalTracker(nowUtc);
-        _lastThinkUtc = DateTime.MinValue; // act on the first tick
+        // Wait one think interval before acting: animals placed with a new world
+        // (or reloaded at launch) must not strike a traveller in the first second
+        _lastThinkUtc = nowUtc;
     }
 
     // -------------------------------------------------------------------------
