@@ -313,7 +313,7 @@ Everything in [`docs/demo/`](docs/demo/) is produced by the scripted tour:
 | | |
 |---|---|
 | ![World](docs/demo/03-npcs.png) | ![Primitives](docs/demo/04-primitives.png) |
-| ![The rib](docs/demo/08-rib.png) | ![Your spouse](docs/demo/09-spouse.png) |
+| ![Animals](docs/demo/07-animals.png) | ![The rib](docs/demo/09-rib.png) |
 
 The recorded tour uses scripted voices so it plays the same every time. With the real model (Qwen 2.5 1.5B) it looks like this:
 
