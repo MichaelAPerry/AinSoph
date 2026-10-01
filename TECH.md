@@ -103,7 +103,7 @@ The player can observe this process. The NPC displays a sprite and status while 
 
 ### MODEL
 
-Qwen 2.5 3B. Apache 2.0 license — fully open, compatible with Godot (MIT) and llama.cpp (MIT). Runs on 8GB RAM, CPU-only. Strong instruction following and structured output at low spec.
+Qwen 2.5 3B. Qwen Research License — restricts commercial use; unlike the 1.5B and 7B sizes it is not Apache 2.0. Godot and llama.cpp are MIT. Runs on 8GB RAM, CPU-only. Strong instruction following and structured output at low spec.
 
 ---
 

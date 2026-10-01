@@ -10,6 +10,8 @@ Nothing phones home. No subscription. No server you don't control.
 
 *Scripted demo tour — [video](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
+> **Status: early playable prototype.** The world, survival, dialogue and the Council run end to end. Several designed systems are not wired up yet — see [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+
 ---
 
 ## What It Is
@@ -234,7 +236,7 @@ Forking is not punished. It is designed for.
 | Language | C# |
 | Build | .NET SDK 8.0 |
 | LLM Runtime | llama.cpp via LLamaSharp |
-| Model | Qwen 2.5 3B (Apache 2.0) |
+| Model | Qwen 2.5 3B ([Qwen Research License](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE) — see [Licenses](#licenses)) |
 | Min Hardware | 8 GB RAM, CPU-only, x86_64 |
 | Platforms | Windows, Linux |
 
@@ -272,7 +274,20 @@ This file is in `.gitignore`. Do not commit it.
 
 The model file will be found in `models/` during development. In production builds it is extracted from the PCK on first launch.
 
-No model? The game still runs — see **Demo mode** below.
+No model? The game still runs in demo mode — see [Command-line options](#command-line-options).
+
+### Controls
+
+| Input | Action |
+|-------|--------|
+| WASD / arrow keys / left-click | Walk one tile at a time |
+| Left-click an NPC | Open the six primitives on them |
+| Right-click a tile | Primitives on that tile, or on the item lying there (manna, bodies) |
+| Talk | Opens dialogue — type, then Enter or SEND; Esc or LEAVE to close |
+| Reap | Eat an edible item next to you, or attack a being next to you |
+| Pray | Only reaches the Council when you stand at the altar |
+| SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
+| ROUTES button | Export / import travellers between worlds |
 
 ### Command-line options
 
@@ -305,6 +320,44 @@ GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-demo.sh
 ```
 
 Needs ffmpeg; runs under `xvfb-run` on a headless machine. Add `--model=/path/to/model.gguf` to record with the real LLM.
+
+---
+
+## Code Map
+
+All game code is C# under `scripts/`. There are no hand-built scenes beyond two stubs — `GameRoot` (an autoload) builds everything at runtime.
+
+| Path | What lives there |
+|------|------------------|
+| `scripts/GameRoot.cs` | Boot sequence, save/load, NPC queue pump, player interactions (talk, reap, pray, eat), Council verdicts |
+| `scripts/WorldScene.cs` | The visible world: camera, player sprite, movement, input, NPC nodes |
+| `scripts/World/` | Grid of cells, deterministic cell generation, biomes, caves, altar, manna, survival clock, kill resolution |
+| `scripts/NPC/` | `NpcBrain` (think tick → LLM → decision), prompts, memory slots, the 72 decans, animals |
+| `scripts/Council/` | The Triune Council: three seats, three LLM calls, 2-of-3 vote |
+| `scripts/LLM/LlmRunner.cs` | llama.cpp via LLamaSharp — ChatML prompts for Qwen, one inference at a time, tolerant JSON parsing |
+| `scripts/LLM/DemoResponder.cs` | Scripted replies used when no model is loaded (demo mode) |
+| `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
+| `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character creation, routes |
+| `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
+| `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
+
+Saves live in the Godot user data folder (`~/.local/share/godot/app_userdata/Ain Soph/saves/world` on Linux, `%APPDATA%\Godot\app_userdata\Ain Soph\saves\world` on Windows). Delete that folder to start a new world.
+
+---
+
+## Project Status
+
+**Works now:** world generation (same world every launch for a given seed), fog of war, movement, caves, morning manna, eating, hunger/sleep death, NPCs that think, move, talk and show their state, dialogue, kill resolution, praying at the altar, Council voting with parables, skills/items granted on approval, saves, demo mode.
+
+**Designed but not wired up yet:**
+
+- **Where NPCs come from.** By design NPCs come from players (the rib → spouse → progeny). The rib unlocks after 168 hours of play, but nothing in the UI creates the spouse yet, so a normal world stays empty of NPCs. Demo mode places five NPCs so the world can be seen alive.
+- **Animals.** Cell generation can place them, but nothing spawns them yet.
+- **NPC creations.** NPCs decide to create skills, items and rules, but don't yet take them to the Council.
+- **Rules.** Council-approved rules are recorded but not enforced.
+- **Routes** (moving NPCs between worlds) have a UI but haven't been tested end to end.
+
+The LLM path has been tested with Qwen 2.5 0.5B; the 3B model it ships with hasn't been played through yet.
 
 ---
 
@@ -354,9 +407,15 @@ Extraction destination:
 
 ---
 
-## License
+## Licenses
 
-MIT.
+**Game code:** MIT — see [LICENSE](LICENSE).
+
+**Art:** [Kenney](https://kenney.nl) 1-bit pack and Modular Characters, CC0 (`assets/sprites/*/LICENSE.txt`).
+
+**Runtime:** [LLamaSharp](https://github.com/SciSharp/LLamaSharp) and [llama.cpp](https://github.com/ggml-org/llama.cpp), both MIT. [Godot](https://godotengine.org), MIT.
+
+**Model:** Qwen 2.5 **3B** is released under the [Qwen Research License](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct/blob/main/LICENSE), which restricts commercial use. It is *not* Apache 2.0 — the 1.5B and 7B sizes are. The model is not in this repository; check its license before bundling it in a build you distribute.
 
 The game is free. The world can be forked. Forking is not punished. It is designed for.
 
