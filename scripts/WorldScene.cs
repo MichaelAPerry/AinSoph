@@ -355,6 +355,8 @@ namespace AinSoph
         public void SubmitDialogue(string text) => _dialogue.SubmitText(text);
         public void CloseDialogue()             => _dialogue.Close();
         public void OpenMenuOn(string npcId)    => OnEntityClicked(npcId);
+        public Camera2D Camera                  => _camera;
+        public void SetHudVisible(bool visible) => _hud.Visible = visible;
         public void CloseMenu()                 => _primitiveMenu.Close();
 
         /// <summary>Open the altar prayer screen.</summary>

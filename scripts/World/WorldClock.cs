@@ -10,12 +10,16 @@ public class WorldClock
     /// <summary>Current UTC time. Always the real clock.</summary>
     public static DateTime NowUtc => DateTime.UtcNow;
 
+    /// <summary>Set by the trailer to stage day or night; null follows the real clock.</summary>
+    public static bool? ForceNight { get; set; }
+
     /// <summary>
     /// Night is determined by local time.
     /// Vision reduces to 1 grid square at night (vs. 3 during day).
     /// </summary>
     public static bool IsNight()
     {
+        if (ForceNight is { } forced) return forced;
         var local = DateTime.Now;
         return local.Hour < 6 || local.Hour >= 20;
     }

@@ -111,6 +111,13 @@ public partial class GameRoot : Node
         _instance = this;
         GD.Print($"Ain Soph {AinSoph.UI.GameSettings.Version} — booting");
 
+        // The trailer renders at 1080p with the 720p layout: tiles land on whole pixels (×1.5)
+        if (HasArg("--trailer"))
+        {
+            GetTree().Root.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+            GetTree().Root.ContentScaleSize = new Vector2I(1280, 720);
+        }
+
         // Sound and settings first, so the boot screen already has music
         AddChild(new AinSoph.Audio.Sound());
         AinSoph.UI.GameSettings.Load();
@@ -138,7 +145,8 @@ public partial class GameRoot : Node
         // 3. Save manager — load existing world or create new
         GD.Print("GameRoot: initializing save manager...");
         // The demo tour always starts from a fresh, throwaway world
-        var tour     = HasArg("--demo-tour");
+        var trailer  = HasArg("--trailer");
+        var tour     = HasArg("--demo-tour") || trailer; // the trailer is a staged tour
         var selfTest = HasArg("--selftest");
         var saveDir  = ProjectSettings.GlobalizePath(tour ? TourSavePath : selfTest ? TestSavePath : SaveSubPath);
         if ((tour || selfTest) && System.IO.Directory.Exists(saveDir))
@@ -338,7 +346,7 @@ public partial class GameRoot : Node
             AddChild(new AinSoph.UI.GameMenu());
             if (!tour && !selfTest) AddChild(new AinSoph.UI.Hints()); // the tour has its own captions
             if (IsDemo) scene.ShowWorldText("Demo mode — the voices you hear are scripted.");
-            if (tour)     AddChild(new Demo.DemoDirector());
+            if (tour)     AddChild(HasArg("--trailer") ? new Demo.TrailerDirector() : new Demo.DemoDirector());
             if (selfTest) AddChild(new Demo.SelfTest());
             GD.Print("GameRoot: WorldScene ready");
 
@@ -1415,6 +1423,24 @@ public partial class GameRoot : Node
 
     /// <summary>Press RIB (demo tour).</summary>
     public void UseRib() => OnRibRequested();
+
+    // ── Trailer staging (--trailer only) ─────────────────────────────────
+
+    public AnimalBrain? StageAnimal(string species, int tileX, int tileY) =>
+        AnimalSpecies.Get(species) is { } sp ? AddAnimal(sp, tileX, tileY, DateTime.UtcNow) : null;
+
+    public void StagePredatorKill(AnimalBrain predator)
+    {
+        _worldScene?.ShowNpcSpeech(predator.AnimalId, "!");
+        KillPlayer($"was killed by a {predator.Name}");
+    }
+
+    public void StageBirth()
+    {
+        if (Tribe == null) return;
+        Tribe.LastProgenyBirthUtc = DateTime.UtcNow - TimeSpan.FromDays(8);
+        Tribe.Tick(Llm, DateTime.UtcNow);
+    }
 
     private async void OnPrimitiveUsed(string targetId, int skillType)
     {
