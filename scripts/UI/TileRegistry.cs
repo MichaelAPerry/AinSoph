@@ -50,6 +50,7 @@ namespace AinSoph.UI
         public const int AltarTile  = 120;  // standing cross
         public const int MannaTile  = 56;
         public const int BodyTile   = 121;  // headstone
+        public const int RelicTile  = 88;   // a thing the gods sent
 
         // ── Entities ────────────────────────────────────────────────────────
         public const int PlayerTile = 7;

@@ -78,7 +78,9 @@ public partial class GameMenu : CanvasLayer
             "Left-click a being — the six primitives (Move, See, Hear, Talk, Reap, Pray)\n" +
             "Right-click a tile — act on it, or on what lies there (manna, bodies)\n" +
             "Reap — eat what is edible beside you, or strike a being beside you\n" +
-            "SLEEP — sleep or wake; only a cave is safe\n" +
+            "Move on a thing beside you — pick it up.  PACK or I — eat, give or drop what you carry\n" +
+            "Pray at the hidden altar — ask for a skill, a thing or a law, or leave the choice to the gods\n" +
+            "SLEEP — sleep or wake; only a cave (or a gift of shelter) is safe\n" +
             "RIB — after a week of play, give form to your spouse\n" +
             "Esc — this menu", 12, Muted, wrap: true);
         _controls.Visible = false;

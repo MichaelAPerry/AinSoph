@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 using System.Collections.Generic;
 using AinSoph.Skills;
 
@@ -84,6 +85,16 @@ namespace AinSoph.UI
             _unlockedSkills = new List<SkillType>(unlocked);
             RebuildSlots();
         }
+
+        /// <summary>The Council's gifts, shown after the six primitives.</summary>
+        public void SetGifts(IReadOnlyList<Skills.Gift> gifts)
+        {
+            _gifts = gifts.ToList();
+            RebuildSlots();
+        }
+
+        private List<Skills.Gift> _gifts = new();
+        private const int MaxGiftChips = 4;
 
         /// <summary>Tell the HUD whether the player is currently sleeping.</summary>
         public void SetSleeping(bool sleeping)
@@ -198,6 +209,20 @@ namespace AinSoph.UI
             _ribBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RibRequested); };
             _actionBarPanel.AddChild(_ribBtn);
 
+            // ── PACK button — what you carry (also I) ──
+            var packBtn = new Button();
+            packBtn.Text     = "PACK";
+            packBtn.Size     = new Vector2(64, 38);
+            packBtn.Position = new Vector2(w - 318, (barH - 38) / 2f);
+            packBtn.TooltipText = "What you carry (I)";
+            packBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.10f, 0.10f, 0.08f)));
+            packBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.20f, 0.19f, 0.14f)));
+            packBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
+            packBtn.AddThemeFontSizeOverride("font_size", 10);
+            packBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
+            packBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.PackRequested); };
+            _actionBarPanel.AddChild(packBtn);
+
             // ── ROUTES button — far right of action bar ──
             var routesBtn = new Button();
             routesBtn.Text     = "ROUTES";
@@ -236,6 +261,52 @@ namespace AinSoph.UI
                 var slot = BuildSlot(skill, unlocked);
                 _slotRow.AddChild(slot);
             }
+
+            // Gifts from the Council — what each one does, at a glance; details on hover
+            if (_gifts.Count > 0)
+                _slotRow.AddChild(new VSeparator());
+            foreach (var gift in _gifts.TakeLast(MaxGiftChips))
+                _slotRow.AddChild(BuildGiftChip(gift));
+            if (_gifts.Count > MaxGiftChips)
+            {
+                var more = new Label { Text = $"+{_gifts.Count - MaxGiftChips}",
+                    TooltipText = string.Join("\n", _gifts.SkipLast(MaxGiftChips).Select(g => g.Label)),
+                    MouseFilter = Control.MouseFilterEnum.Stop, VerticalAlignment = VerticalAlignment.Center };
+                more.AddThemeColorOverride("font_color", GiftGold);
+                _slotRow.AddChild(more);
+            }
+        }
+
+        private static readonly Color GiftGold = new(1f, 0.85f, 0.45f);
+
+        private Control BuildGiftChip(Skills.Gift gift)
+        {
+            var chip = new PanelContainer
+            {
+                CustomMinimumSize = new Vector2(96, 44),
+                TooltipText = $"{gift.Label}\n{(gift.Kind == "item" ? "Carried" : "Learned")} — granted by the Council",
+                MouseFilter = Control.MouseFilterEnum.Stop,
+            };
+            var style = MakeFlatStyle(new Color(0.14f, 0.12f, 0.06f));
+            style.BorderColor = new Color(0.55f, 0.45f, 0.2f);
+            chip.AddThemeStyleboxOverride("panel", style);
+
+            var box = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            box.AddThemeConstantOverride("separation", 1);
+            chip.AddChild(box);
+
+            var name = new Label { Text = gift.Name.Length > 16 ? gift.Name[..15] + "…" : gift.Name,
+                HorizontalAlignment = HorizontalAlignment.Center };
+            name.AddThemeFontSizeOverride("font_size", 10);
+            name.AddThemeColorOverride("font_color", GiftGold);
+            box.AddChild(name);
+
+            var tag = new Label { Text = Skills.Gifts.Tag(gift.Effect), HorizontalAlignment = HorizontalAlignment.Center };
+            tag.AddThemeFontSizeOverride("font_size", 8);
+            tag.AddThemeColorOverride("font_color", gift.Effect == Skills.GiftEffect.Lore
+                ? new Color(0.5f, 0.5f, 0.45f) : new Color(0.75f, 0.72f, 0.6f));
+            box.AddChild(tag);
+            return chip;
         }
 
         private Control BuildSlot(SkillType skill, bool unlocked)
@@ -323,5 +394,6 @@ namespace AinSoph.UI
         [Signal] public delegate void RoutesOpenRequestedEventHandler();
         [Signal] public delegate void SleepRequestedEventHandler();
         [Signal] public delegate void RibRequestedEventHandler();
+        [Signal] public delegate void PackRequestedEventHandler();
     }
 }

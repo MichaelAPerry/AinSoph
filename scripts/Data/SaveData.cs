@@ -88,6 +88,10 @@ public class NpcSaveData
 
     // Lineage — append only, never edited
     public List<string> Lineage { get; set; } = new();
+
+    // What the Council has granted this NPC
+    public List<AinSoph.Skills.Gift> Gifts { get; set; } = new();
+    public DateTime? LastMendedUtc { get; set; }
 }
 
 /// <summary>
@@ -122,6 +126,26 @@ public class PlayerSaveData
 
     // Skills the player has acquired
     public List<string> SkillIds { get; set; } = new();
+
+    // What the Council has granted — each one changes a rule (Gift.cs)
+    public List<AinSoph.Skills.Gift> Gifts { get; set; } = new();
+    public DateTime? LastMendedUtc { get; set; }
+
+    // What the player carries, any law they broke, and whether the Council has come to them
+    public List<CarriedItem> Carried { get; set; } = new();
+    public string?   LawBroken     { get; set; }
+    public DateTime? LawBrokenUtc  { get; set; }
+    public bool      EncounterDone { get; set; }
+}
+
+/// <summary>A thing carried: the item as it lay in the world, and when it was picked up (food still spoils).</summary>
+public class CarriedItem
+{
+    public ItemSaveData Item        { get; set; } = new();
+    public DateTime     PickedUpUtc { get; set; }
+
+    public bool Spoiled(DateTime nowUtc) =>
+        Item.LifespanHours is { } life && (Item.AgeHours ?? 0) + (nowUtc - PickedUpUtc).TotalHours >= life;
 }
 
 /// <summary>
@@ -147,6 +171,44 @@ public class WorldSaveData
 
     // Rules the Council has approved — world physics added by the people in it (RULES.md)
     public List<LawRecord> Laws  { get; set; } = new();
+
+    // What the gods have done to this world (GameRoot.Divine.cs)
+    public List<SpeciesRecord> Species { get; set; } = new();
+    public List<TerrainEdit>   Terrain { get; set; } = new();
+    public List<OmenRecord>    Omens   { get; set; } = new();
+    public string?   Season         { get; set; }
+    public DateTime? SeasonUntilUtc { get; set; }
+}
+
+/// <summary>A species the gods made.</summary>
+public class SpeciesRecord
+{
+    public string Name     { get; set; } = string.Empty;
+    public string Type     { get; set; } = "Neutral";
+    public string Habitat  { get; set; } = "Land";
+    public bool   Edible   { get; set; }
+    public int    Glyph    { get; set; }
+    public string Tint     { get; set; } = "ffffff";
+    public int    Strength { get; set; }
+    public bool   Hunts    { get; set; }
+    public bool   Unique   { get; set; }
+    public string Look     { get; set; } = string.Empty;
+}
+
+/// <summary>One tile of land the gods changed.</summary>
+public class TerrainEdit
+{
+    public int    X     { get; set; }
+    public int    Y     { get; set; }
+    public string Biome { get; set; } = string.Empty;
+}
+
+/// <summary>What the gods did, in the words the world remembers — given to every NPC.</summary>
+public class OmenRecord
+{
+    public string   Proclamation { get; set; } = string.Empty;
+    public string   Deed         { get; set; } = string.Empty;
+    public DateTime Utc          { get; set; }
 }
 
 public class LawRecord

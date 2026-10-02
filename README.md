@@ -2,15 +2,15 @@
 
 **The boundless. The infinite before form.**
 
-Ain Soph is a free, open source, persistent, shared world game. It runs on low-spec hardware. It has no prescribed win condition. It is endlessly customizable. It is easy to run. Easy to learn. Hard to master.
+Ain Soph is a free, open source, persistent, single-player world game. Your world is yours alone; travellers can cross to a friend's world by route. It runs on low-spec hardware. It has no prescribed win condition. It is endlessly customizable. It is easy to run. Easy to learn. Hard to master.
 
-Nothing phones home. No subscription. No server you don't control.
+Nothing phones home. No subscription. No server.
 
-![Ain Soph demo tour](docs/demo/tour.gif)
+[![Ain Soph trailer](docs/demo/trailer-poster.jpg)](docs/demo/trailer.mp4)
 
-*Scripted demo tour — [video](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
+*[Watch the trailer](docs/demo/trailer.mp4) (68 s, narrated) · [scripted demo tour](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
-> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 28-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 60-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
 ## Download
 
@@ -22,7 +22,7 @@ Windows may warn that the installer is from an unknown publisher (it isn't code-
 
 ## What It Is
 
-A living world on a grid of sovereign cells. Every cell is its own territory. The grid expands without limit. Players and NPCs inhabit the same world simultaneously, under identical rules.
+A living world on a grid of sovereign cells. Every cell is its own territory. The grid expands without limit. You and the NPCs live in it under identical rules.
 
 NPCs are not scripted. They are powered by a local LLM running on the player's own machine — no cloud, no API key, no latency. Each NPC has a personality drawn from 72 types, a memory of four slots that accumulates across their life, and the capacity to create content — skills, items, rules — that enters the world as equal world content.
 
@@ -46,7 +46,7 @@ The world is an infinite persistent grid of sovereign cells. Mental model: Game 
 
 Each cell is an 8×8 tile grid. Each tile is 32×32 pixels. A single cell is enough space for a player to live an entire game.
 
-All players exist on the same grid simultaneously. Only cells near a player need to be generated at any moment. There is no edge.
+Only cells near the player need to be generated at any moment. There is no edge.
 
 ### Biomes
 
@@ -86,7 +86,7 @@ Every player character and NPC is born with these. They cannot be created. They 
 | **Move** | Locomotion |
 | **See** | Visual perception — 3 cells by day, 1 by night |
 | **Hear** | Audio perception |
-| **Talk** | Communication with NPCs and other players |
+| **Talk** | Communication with NPCs |
 | **Reap** | Covers both killing and eating. Reap on a living target initiates kill resolution (d100). Reap on an edible item satisfies the day's food requirement. Same act. The world makes no distinction. |
 | **Pray** | Reaches the Triune Council. At first does nothing visible. Discovered, not explained. |
 
@@ -107,11 +107,13 @@ Everything beyond the six primitives is created by players and NPCs through the 
 | Substitute | Replaces a broken or absent primitive | Cart (substitutes Move) |
 | Extension | Amplifies an existing primitive | Telescope (extends See) |
 
+What each one actually changes in play is set by the effect the engine reads it as — see [What a grant does](#what-a-grant-does).
+
 ---
 
 ## NPCs
 
-NPCs come from players. The server does not generate them independently. A player earns their first NPC — the spouse — after 168 accumulated real hours in-world (one real week). From the spouse, progeny are born: 1 or 2 per real week. Progeny wander, intermarry, and carry lineage across the grid.
+Four founding travellers are in every new world when you arrive. Your own people come from you: you earn your first NPC — the spouse — after 168 accumulated real hours in-world (one real week). From the spouse, progeny are born: 1 or 2 per real week. Progeny wander, intermarry, and carry lineage across the grid.
 
 ### The 72 Decans
 
@@ -200,11 +202,63 @@ The Council does not speak in technical terms. It responds in homily, allegory, 
 
 All three homilies are delivered regardless of whether the submission passes or fails. The Council does not negotiate. It does not accept appeals.
 
+### What a grant does
+
+The parables are veiled; the result is not. Above them, one plain line says what entered the world.
+
+A **rule** becomes a law. It is written into every NPC's prompt and they live by it.
+
+A **skill** or **item** becomes a *gift* its petitioner holds. The model cannot write engine code, so the engine reads every petition as one of eight effects it knows. It picks the effect whose words the petition uses most, and the Council is shown that effect when it votes:
+
+| Effect | Builds on | What it changes | Asked for with words like |
+|---|---|---|---|
+| Sight | See | You see one cell further, day and night | star, lamp, torch, telescope, scout |
+| Hearing | Hear | You are told when a predator comes within five tiles, and from which way | listen, ear, horn, warn |
+| Seafaring | Move | You can cross the sea | boat, raft, swim, sail |
+| Strength | Reap | +15 to your kill number, when you reap and when you are attacked | spear, bow, hunt, trap, shield |
+| Endurance | Reap (eating) | 36 hours between meals instead of 24 | bread, cook, forage, harvest |
+| Shelter | sleeping | Sleeping in the open is as safe as a cave | fire, tent, hut, camp, warm |
+| Mending | Reap (substitute) | A lost fight wounds you instead of killing you, once a day | heal, herb, mend, bandage |
+| Kinship | Talk | Predators pass you by half the time | tame, shepherd, calm, beast |
+
+A petition that fits none of them goes to the gods (below). Gifts show on the action bar beside the six primitives (hover for details) and are saved with you. NPCs are told what their own gifts do, and what yours do when you speak to them. A second gift with the same effect adds nothing. A character who dies loses their gifts; laws stay.
+
+Gifts work for NPCs too. Strength, Endurance, Shelter, Mending and Kinship apply to them, and a traveller's gifts cross a route with them.
+
+**Laws bind you too.** When you reap a being or eat, the deed is judged against the world's laws, but only laws that forbid something and touch what you did. A broken law brands you for a day: the Council will not hear your prayers, the status line says *Lawbreaker*, and every NPC knows.
+
+**The first encounter.** Within five minutes of a new life, the Council sends a messenger. The model chooses its form (a heron of white fire, a woman woven from reeds…) and its words. It appears beside you, speaks, and tells you plainly which way the hidden altar lies and what prayer there can do. It happens once per life, then it is gone.
+
+Sleeping matters: a predator cannot reach anyone asleep in a cave (or sheltered by a gift), and anyone asleep in the open defends at half strength.
+
+### The gods' choice
+
+Some petitions go past the eight gifts:
+- one that leaves the choice to the gods ("Gods' choice", "Let the gods decide", "Thy will");
+- one that asks for the world itself to change ("Make a beast that hunts by night", "Turn the desert to forest", "Send a flood upon the valley");
+- an approved skill or item that fits no gift.
+
+If the Council approves, the model is asked once more, as the gods' will, what enters the world. It may answer the petition, bend it, or surprise the petitioner. It picks one act, and everything inside that act is its own invention:
+
+| Act | What the gods decide | What happens |
+|---|---|---|
+| Creature | Name, look, predator/prey/neutral, land/air/water, edible, strength, how many, near or far | A new species is made, appears in the world, and is found in land discovered from then on |
+| Enemy | Name, look, strength | One named beast that stalks the nearest being and strikes when beside it. It never respawns |
+| Land | What it becomes (forest, sea, desert, river…), how large, near or far | The tiles change, and stay changed |
+| Provision | What appears, edible or not, how many | Food for a day, or relics, around the petitioner |
+| Season | A long night, famine or plenty, and for how long | Night falls; the manna spoils and stops; or it falls twice over |
+| Gift | Its name and which of the eight effects | As above |
+| Law | Its name and words | Every NPC lives by it |
+
+Every act ends with a **proclamation**, one sentence of scripture saying what was done. The player sees it, and so does every NPC: the gods' latest deeds go into NPC prompts, so they react to the new beast, the flood or the long night as their nature would. If the model's reply holds no act but the gods said something, their words are kept as an **omen**. That is story only, and nothing measurable changes. A petition that names the land in it becomes that land change.
+
+What the model asks for, the engine checks. Only these acts exist, every number is capped (at most 6 creatures, 12 provisions, land 4 tiles across, a season of 24 hours), all words pass the content filter, the altar and caves are never changed, and the sea never rises under a living being. NPC petitions reach the gods too, at most once every 30 minutes. Everything the gods make is saved with the world.
+
 ---
 
 ## Death
 
-When a player or NPC dies, their body remains in the world as an item. It is physical. Other players and NPCs can interact with it. What happens to it is up to them.
+When a player or NPC dies, their body remains in the world as an item. It is physical. You and the NPCs can interact with it. What happens to it is up to them.
 
 **Player death:** The player's body stays. The player creates a new character with no continuity — no knowledge of the old character's location, possessions, or history. The new character descends.
 
@@ -291,7 +345,9 @@ No model? The game still runs in demo mode — see [Command-line options](#comma
 | Right-click a tile | Primitives on that tile, or on the item lying there (manna, bodies) |
 | Talk | Opens dialogue — type, then Enter or SEND; Esc or LEAVE to close |
 | Reap | Eat an edible item next to you, or attack a being next to you (animals too — a clean animal's body is food) |
-| Pray | Only reaches the Council when you stand at the altar |
+| Move on an item | Pick it up (right-click the item beside you, then Move). A made thing the engine reads as a gift (a lantern, a bow) works while you carry it |
+| PACK button / I | What you carry (up to 8): eat it, give it to the NPC beside you, or drop it. Food spoils in the pack as on the ground; what you carry falls where you die |
+| Pray | Only reaches the Council when you stand at the altar. Within five minutes of a new life, the Council sends a messenger to tell you which way it lies |
 | SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
 | RIB button | Appears once you have earned the rib — name and describe your spouse |
 | ROUTES button | Export / import travellers between worlds |
@@ -307,8 +363,9 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--model=<path>` | Use any `.gguf` file instead of the bundled model (handy for testing with a small model). |
 | `--demo-tour` | Plays a hands-free walkthrough with captions, then quits. Uses a throwaway world, never your save. Scripted voices unless `--model=` is also given. |
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
+| `--trailer` | Plays the staged, captionless run the trailer is cut from, at 1080p, and prints `TRAILER-MARK` lines. Uses a throwaway world. |
 | `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
-| `--selftest` | Runs 28 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
+| `--selftest` | Runs 60 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
 
 If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
 
@@ -337,6 +394,16 @@ GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-demo.sh
 
 Needs ffmpeg; runs under `xvfb-run` on a headless machine. Add `--model=/path/to/model.gguf` to record with the real LLM.
 
+### The trailer
+
+[`docs/demo/trailer.mp4`](docs/demo/trailer.mp4) is cut from in-engine footage. Some beats are staged: night is forced, the lion is placed beside you and its kill is certain, and the Council is asked again until it grants something. What the NPC and the Council say is real output from the bundled model, quoted from that run. Rebuild it with:
+
+```
+FONTS=/path/to/fonts GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/record-trailer.sh
+```
+
+The narration is spoken by [Piper](https://github.com/rhasspy/piper) with the `en_GB-cori-high` voice (trained on public-domain LibriVox recordings); the score and sound design are synthesised by `tools/trailer/score.py`; the type is Cinzel and Cormorant Garamond (SIL Open Font License, used only in the video).
+
 ---
 
 ## Code Map
@@ -355,11 +422,18 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/LLM/ContentFilter.cs` | Prompt rule + word-list filter (`data/blocklist.txt`) on everything the AI says |
 | `scripts/Audio/Sound.cs` | Music, ambience and effects on their own buses (`assets/audio/`, made by `tools/make-sounds.py`) |
 | `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
-| `scripts/Demo/SelfTest.cs` | `--selftest`: 28 automated checks of the whole loop, exit code 0/1 |
+| `scripts/Council/GodsChoice.cs`, `scripts/GameRoot.Divine.cs` | The gods' choice: the model picks an act (creature, enemy, land, provision, season, gift, law); the engine checks it, does it and saves it |
+| `scripts/Skills/Gift.cs` | The eight gift effects and how a petition is read as one |
+| `scripts/GameRoot.Pack.cs`, `scripts/UI/PackScreen.cs` | Picking things up, the pack (eat, give, drop), carried gifts, spoiling |
+| `scripts/GameRoot.Laws.cs`, `scripts/Council/LawJudge.cs` | Judging the player's deeds against the laws; the day-long brand |
+| `scripts/GameRoot.Encounter.cs` | The Council's messenger, within five minutes of a new life |
+| `scripts/Demo/TrailerDirector.cs` | The staged `--trailer` run the trailer is cut from |
+| `scripts/Demo/SelfTest.cs` | `--selftest`: 60 automated checks of the whole loop, exit code 0/1 |
 | `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
 | `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
 | `tools/record-demo.sh` | Records the demo tour to `docs/demo/` |
+| `tools/record-trailer.sh` | Records and cuts the trailer (`tools/trailer/`: narration, score, edit) |
 | `tools/build-steam.sh` | Steam-ready Windows and Linux folders in `build/steam/` |
 | `tools/package-windows.sh` | Windows installer `build/AinSoph-Setup-<version>.exe` (NSIS script in `tools/installer/`) |
 | `.github/workflows/` | CI (build + self-test on every push) and Release (installer + Linux build on a `v*` tag) |
@@ -376,7 +450,7 @@ Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/Ai
 - **People** — four founding travellers in every new world; NPCs that think, move, talk in character, remember, and take their creations to the Council; dialogue.
 - **Animals** — 30 species from ITEMS.md; they wander, eat manna, hunt and flee; clean ones are food.
 - **The rib** — earned after a week of play, named and described by you; weekly children with lineage.
-- **The Council** — three seats, parables, 2-of-3 votes; approved skills, items and rules enter the world, and rules become laws every NPC lives by.
+- **The Council** — three seats, parables, 2-of-3 votes. Approved rules become laws every NPC lives by; approved skills and items become gifts with real effects (sight, the sea, strength, endurance, shelter, mending, kinship with beasts) for players and NPCs alike; and the gods' choice can make new creatures and enemies, change the land, send food or seasons, all saved with the world.
 - **Routes** — send travellers to another world and receive theirs.
 - **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
 

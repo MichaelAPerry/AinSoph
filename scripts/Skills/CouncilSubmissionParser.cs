@@ -26,6 +26,16 @@ public class CouncilSubmissionParser
 
         var text = prayerText.Trim();
 
+        // Leaving it to the gods, or asking for the world itself to change: the gods choose what enters
+        if (GodsChoice.IsDeferral(text) || GodsChoice.IsWorldShaping(text))
+            return new CouncilSubmission
+            {
+                Type        = "choice",
+                Name        = GodsChoice.IsDeferral(text) ? "The Gods' Choice" : NameOf(text),
+                Description = text,
+                Effect      = "the gods decide what enters the world: a creature, an enemy, the land, food, a season, a gift or a law",
+            };
+
         // Must have at least a name/description of the thing
         // Minimum meaningful prayer: 10 characters, more than 2 words
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -43,7 +53,7 @@ public class CouncilSubmissionParser
         }
 
         // Extract a name — first noun phrase or first few words
-        var name = ExtractName(text);
+        var name = NameOf(text);
         if (string.IsNullOrEmpty(name)) return null;
 
         return new CouncilSubmission
@@ -52,7 +62,8 @@ public class CouncilSubmissionParser
             Name        = name,
             Description = text,
             BaseSkills  = new List<string>(),
-            Cost        = ParseCost(text)
+            Cost        = ParseCost(text),
+            Effect      = type == "rule" ? string.Empty : Gifts.Describe(Gifts.Classify(text)),
         };
     }
 
@@ -67,24 +78,43 @@ public class CouncilSubmissionParser
         return null;
     }
 
-    private static string ExtractName(string text)
-    {
-        // Take up to the first clause break or 5 words — whichever is shorter
-        var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var end   = Math.Min(5, words.Length);
+    // "Grant me a skill: …", "I want to make a …", "Teach us the art of …"
+    private static readonly Regex RequestPreamble = new(
+        @"^\s*(please\s+)?" +
+        @"((grant|give|teach|bless|show|let)\s+(me|us)\s+|i\s+(ask|pray|want|wish|seek|need)(\s+(for|to))?\s+|we\s+(ask|pray|want|wish|seek|need)(\s+(for|to))?\s+)?" +
+        @"((make|craft|build|learn|know|have|create)\s+)?" +
+        @"(with\s+)?((a|an|the)\s+)?" +
+        @"((new\s+)?(skill|ability|power|item|thing|tool|object|rule|law|gift|art)(\s+(of|called|named))?\s*[:\-–—,]?\s*)?" +
+        @"((for|of|to)\s+)?",
+        RegexOptions.IgnoreCase);
 
-        // Stop at common clause starters
+    /// <summary>
+    /// The name of what is asked for: "Grant me a skill: Fire Making - to keep warm" → "Fire Making".
+    /// At most five words, cut at the first clause break.
+    /// </summary>
+    public static string NameOf(string text)
+    {
+        var rest = RequestPreamble.Replace(text.Trim(), "", 1);
+        if (string.IsNullOrWhiteSpace(rest)) rest = text.Trim();
+
+        // Cut at punctuation that ends the name
+        var cut = Regex.Match(rest, @"\s[-–—]\s|[:;,.!?(]");
+        if (cut.Success && cut.Index > 0) rest = rest[..cut.Index];
+
+        var words = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var end   = Math.Min(5, words.Length);
         for (var i = 1; i < end; i++)
         {
-            var w = words[i].ToLower().TrimEnd(',', '.', ';');
-            if (w is "that" or "which" or "so" or "to" or "for" or "it")
+            var w = words[i].ToLowerInvariant();
+            if (w is "that" or "which" or "so" or "to" or "for" or "it" or "and" or "with")
             {
                 end = i;
                 break;
             }
         }
 
-        return string.Join(" ", words[..end]).Trim('.', ',', ' ');
+        var name = string.Join(" ", words[..end]).Trim('.', ',', ' ', '"', '\'');
+        return name.Length == 0 ? name : char.ToUpperInvariant(name[0]) + name[1..];
     }
 
     private static SubmissionCost ParseCost(string text)

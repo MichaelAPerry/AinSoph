@@ -37,6 +37,13 @@ namespace AinSoph.UI
             Visible     = true;
         }
 
+        /// <summary>Fill in the fields without confirming (trailer).</summary>
+        public void Type(string name, string description)
+        {
+            _nameField.Text = name;
+            _descField.Text = description;
+        }
+
         /// <summary>Fill in and confirm without the keyboard (demo tour).</summary>
         public void Submit(string name, string description)
         {

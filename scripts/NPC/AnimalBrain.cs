@@ -26,7 +26,7 @@ public class AnimalBrain
 
     public SurvivalTracker Survival { get; }
 
-    public int KillNumber => AnimalType switch
+    public int KillNumber => Species?.Strength ?? AnimalType switch
     {
         AnimalType.Predator => BaseKillNumbers.AnimalPredator,
         AnimalType.Neutral  => BaseKillNumbers.AnimalNeutral,

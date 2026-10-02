@@ -54,8 +54,9 @@ public class NpcCreationPipeline
         var submission = new CouncilSubmission
         {
             Type        = type,
-            Name        = intent, // The NPC named it in their intent
+            Name        = Skills.CouncilSubmissionParser.NameOf(intent),
             Description = intent,
+            Effect      = type == "rule" ? string.Empty : Skills.Gifts.Describe(Skills.Gifts.Classify(intent)),
             CreatedBy   = npc.NpcId,
             BaseSkills  = new List<string>(),
             Cost        = new SubmissionCost()

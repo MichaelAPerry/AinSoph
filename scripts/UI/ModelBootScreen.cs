@@ -107,7 +107,7 @@ namespace AinSoph.UI
             // --demo forces scripted NPCs/Council; --model=<path> points at any .gguf
             var args = OS.GetCmdlineUserArgs().Concat(OS.GetCmdlineArgs()).ToArray();
             // The tour and the self-test use scripted voices unless a model is named
-            bool scriptedRun = (args.Contains("--demo-tour") || args.Contains("--selftest")) &&
+            bool scriptedRun = (args.Contains("--demo-tour") || args.Contains("--trailer") || args.Contains("--selftest")) &&
                                !args.Any(a => a.StartsWith("--model="));
             if (args.Contains("--demo") || scriptedRun)
             {

@@ -58,7 +58,8 @@ namespace AinSoph.UI
 
             // Sight is a circle: 3 cells by day, 1 by night (WORLD.md), with a
             // soft edge band where biomes and landmarks still show, dimmed
-            _clearRadius = WorldClock.VisionRange() * CellTiles + CellTiles / 2f;
+            var sight = WorldClock.VisionRange() + (GameRoot.Player?.Gifts.SightBonusCells ?? 0); // the Sight gift
+            _clearRadius = sight * CellTiles + CellTiles / 2f;
 
             // Items by tile, for the overlay pass
             var itemTiles = new Dictionary<Vector2I, int>();
@@ -67,7 +68,7 @@ namespace AinSoph.UI
                 foreach (var item in Items.All)
                 {
                     var pos  = new Vector2I(item.TileX, item.TileY);
-                    var tile = item.Type == "body" ? TileRegistry.BodyTile : TileRegistry.MannaTile;
+                    var tile = item.Type switch { "body" => TileRegistry.BodyTile, "relic" => TileRegistry.RelicTile, _ => TileRegistry.MannaTile };
                     if (!itemTiles.ContainsKey(pos) || tile == TileRegistry.BodyTile)
                         itemTiles[pos] = tile;
                 }
@@ -150,6 +151,9 @@ namespace AinSoph.UI
         /// double, the eight around it once each, so where two biomes meet the
         /// colour steps across a tile or two instead of a hard line.
         /// </summary>
+        /// <summary>The land changed (the gods' choice): recompute ground colours on the next refresh.</summary>
+        public void InvalidateGround() => _groundCache.Clear();
+
         private Color GroundColor(Vector2I tile)
         {
             if (_groundCache.TryGetValue(tile, out var cached)) return cached;

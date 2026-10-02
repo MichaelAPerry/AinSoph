@@ -24,6 +24,21 @@ public class PlayerCharacter
     // Skills — all six primitives at birth
     public HashSet<string> SkillIds { get; } = new(PrimitiveSkills.All);
 
+    // What the Council has granted — each gift changes a rule (see Gift.cs)
+    public GiftSet Gifts { get; } = new();
+
+    // What you carry (GameRoot.Pack.cs) — at most MaxCarried things
+    public List<Data.CarriedItem> Carried { get; } = new();
+    public const int MaxCarried = 8;
+
+    // A broken law (GameRoot.Laws.cs): the Council will not hear you until a day has passed
+    public string?   LawBroken    { get; set; }
+    public DateTime? LawBrokenUtc { get; set; }
+    public bool IsBranded(DateTime nowUtc) => LawBrokenUtc is { } t && (nowUtc - t).TotalHours < 24;
+
+    // The Council's first encounter (GameRoot.Encounter.cs) — once per life
+    public bool EncounterDone { get; set; }
+
     // Inventory
     public List<string> InventoryItemIds { get; } = new();
 
@@ -40,7 +55,7 @@ public class PlayerCharacter
 
     public PlayerCharacter(DateTime nowUtc)
     {
-        Survival = new SurvivalTracker(nowUtc);
+        Survival = new SurvivalTracker(nowUtc) { HungerHours = () => Gifts.HungerHours };
     }
 
     // -------------------------------------------------------------------------
@@ -117,8 +132,8 @@ public class PlayerCharacter
     public void AddProgeny(string npcId) => ProgenyIds.Add(npcId);
 
     // -------------------------------------------------------------------------
-    // Kill number — base 50, modified by skills eventually
+    // Kill number — base 50, raised by the Strength gift
     // -------------------------------------------------------------------------
 
-    public int KillNumber => BaseKillNumbers.Pc;
+    public int KillNumber => BaseKillNumbers.Pc + Gifts.KillBonus;
 }

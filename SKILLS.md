@@ -49,6 +49,12 @@ Skills can be created whole cloth with no prerequisites. Prerequisites are not r
 
 ---
 
+### IN THE ENGINE
+
+Every Council-granted skill or item is held as a gift and read as one effect: Sight, Hearing and Seafaring extend See, Hear and Move; Strength extends Reap; Endurance and Shelter ease eating and sleeping; Mending substitutes for a lost fight; Kinship extends Talk to beasts. Anything else is lore. See `scripts/Skills/Gift.cs` and README.md, *What a grant does*.
+
+---
+
 ### SURVIVAL REQUIREMENTS
 
 Eat and sleep are not skills. They are world-enforced survival requirements.

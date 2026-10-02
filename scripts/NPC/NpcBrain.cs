@@ -78,7 +78,10 @@ public class NpcBrain
         _cellId = $"{cx},{cy}";
     }
 
-    public int KillNumber => BaseKillNumbers.NpcBase + Decan.KillModifier;
+    public int KillNumber => BaseKillNumbers.NpcBase + Decan.KillModifier + Gifts.KillBonus;
+
+    /// <summary>What the Council has granted this NPC — Strength, Endurance, Mending and Kinship apply to NPCs too.</summary>
+    public Skills.GiftSet Gifts { get; } = new();
 
     /// <summary>Killed by another being (Reap). The body is placed by whoever handles OnDeath.</summary>
     public void Kill()
@@ -110,7 +113,7 @@ public class NpcBrain
         NpcId    = npcId;
         Decan    = decan;
         _llm     = llm;
-        Survival = new SurvivalTracker(nowUtc);
+        Survival = new SurvivalTracker(nowUtc) { HungerHours = () => Gifts.HungerHours };
         _lastThinkUtc = DateTime.MinValue; // think on the first tick after load
     }
 
@@ -165,7 +168,7 @@ public class NpcBrain
     private async Task ThinkAsync(SituationContext situation, DateTime now,
         CancellationToken ct)
     {
-        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner);
+        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner, Gifts.Summary());
         var userMessage  = NpcPromptBuilder.BuildUserMessage(Memory, situation);
 
         string raw;
@@ -252,9 +255,9 @@ public class NpcBrain
     /// Does not interrupt creation — the NPC responds while continuing.
     /// </summary>
     public async Task<string> RespondToDialogueAsync(string playerMessage,
-        SituationContext situation, CancellationToken ct = default)
+        SituationContext situation, CancellationToken ct = default, string speakerGifts = "", string speakerStanding = "")
     {
-        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner);
+        var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner, Gifts.Summary());
 
         var context = NpcPromptBuilder.BuildUserMessage(Memory, situation);
         var currentActivity = State switch
@@ -267,6 +270,8 @@ public class NpcBrain
 
         var fullUserMessage =
             $"{context}\n\nYour current activity: {currentActivity}\n\n" +
+            (string.IsNullOrEmpty(speakerGifts) ? "" : $"The one speaking to you holds gifts from the Council: {speakerGifts}.\n\n") +
+            (string.IsNullOrEmpty(speakerStanding) ? "" : $"What you know of them: {speakerStanding}\n\n") +
             $"Someone speaks to you: \"{playerMessage}\"\n\n" +
             $"Respond in character. Speak as yourself. Return plain text — no JSON.";
 

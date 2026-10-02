@@ -5,7 +5,7 @@
 
 ### THE GAME
 
-Ain Soph is a free, open source, persistent, shared world game.
+Ain Soph is a free, open source, persistent, single-player world game. Each world belongs to one player; travellers cross between friends' worlds by route.
 
 It runs on low-spec hardware.
 
@@ -51,7 +51,7 @@ The world is procedural and nuanced.
 
 Player-created content — skills, items, political systems — exists alongside everything else as equal world content.
 
-The world can be forked. Someone who disagrees with a server's direction can fork the world and run their own. This is not a bug. This is the point.
+The world can be forked. Someone who disagrees with the game's direction can fork it and make their own. This is not a bug. This is the point.
 
 ---
 

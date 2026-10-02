@@ -41,6 +41,7 @@ namespace AinSoph
 
         /// <summary>The player pressed RIB.</summary>
         public event System.Action? RibRequested;
+        public event System.Action? PackRequested;
 
         // ── Child nodes ───────────────────────────────────────────────────
         private Camera2D        _camera;
@@ -163,6 +164,13 @@ namespace AinSoph
         }
 
         /// <summary>Redraw the map around the player (e.g. after manna spawns or an item is eaten).</summary>
+        /// <summary>The land itself changed: forget cached ground colours, then redraw.</summary>
+        public void RefreshTerrain()
+        {
+            _renderer.InvalidateGround();
+            RefreshMap();
+        }
+
         public void RefreshMap()
         {
             _renderer.Refresh(_playerTile);
@@ -224,6 +232,12 @@ namespace AinSoph
         public override void _UnhandledInput(InputEvent ev)
         {
             if (_dialogue.Visible || InputLocked || MenuOpen) return;
+            if (ev is InputEventKey { Pressed: true, Echo: false, Keycode: Key.I })
+            {
+                PackRequested?.Invoke();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
             if (ev is not InputEventMouseButton mb || !mb.Pressed) return;
 
             var worldPos   = GetGlobalMousePosition();
@@ -274,7 +288,8 @@ namespace AinSoph
             var destTile = TileAt(newTile);
             var hereTile = TileAt(_playerTile);
             bool stranded = hereTile != null && !BiomeData.Get(hereTile.Biome).Passable;
-            if (destTile != null && !BiomeData.Get(destTile.Biome).Passable && !stranded)
+            bool seafarer = Player?.Gifts.Has(Skills.GiftEffect.Seafaring) == true;
+            if (destTile != null && !BiomeData.Get(destTile.Biome).Passable && !stranded && !seafarer)
             {
                 ShowWorldText("The sea will not carry you.");
                 return;
@@ -331,6 +346,9 @@ namespace AinSoph
         }
 
         /// <summary>Called by GameRoot with the actual NPC data + LLM response.</summary>
+        public void OpenVision(string name, int tile, Color tint, string text, System.Action<string> onSpeak) =>
+            _dialogue.OpenVision(name, tile, tint, text, onSpeak);
+
         public void OpenNpcDialogueFull(string npcId, string name, int decanId, int seed,
                                         string openingLine, System.Action<string> onSpeak)
         {
@@ -348,6 +366,7 @@ namespace AinSoph
 
         public void Step(Vector2I dir) => ApplyPlayerMove(_playerTile + dir);
         public void SetRibAvailable(bool available) => _hud.SetRibAvailable(available);
+        public void SetGifts(System.Collections.Generic.IReadOnlyList<Skills.Gift> gifts) => _hud.SetGifts(gifts);
         public void SetSurvivalStatus(string text, bool urgent) => _hud.SetStatus(text, urgent);
         public bool DialogueOpen => _dialogue.Visible;
         public string DialogueSpeech => _dialogue.SpeechText;
@@ -355,6 +374,8 @@ namespace AinSoph
         public void SubmitDialogue(string text) => _dialogue.SubmitText(text);
         public void CloseDialogue()             => _dialogue.Close();
         public void OpenMenuOn(string npcId)    => OnEntityClicked(npcId);
+        public Camera2D Camera                  => _camera;
+        public void SetHudVisible(bool visible) => _hud.Visible = visible;
         public void CloseMenu()                 => _primitiveMenu.Close();
 
         /// <summary>Open the altar prayer screen.</summary>
@@ -455,6 +476,9 @@ namespace AinSoph
 
             _hud.Connect(HUD.SignalName.RibRequested,
                 Callable.From(() => RibRequested?.Invoke()));
+
+            _hud.Connect(HUD.SignalName.PackRequested,
+                Callable.From(() => PackRequested?.Invoke()));
 
             // World text — oblique/environmental responses, fades out above action bar
             var hudLayer = new CanvasLayer();

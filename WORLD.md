@@ -5,11 +5,9 @@
 
 ### THE GRID
 
-The world is an infinitely vast persistent shared grid of sovereign cells.
+The world is an infinitely vast persistent grid of sovereign cells. Each player has their own world; routes carry travellers between them.
 
 Mental model: Game of Life. Each cell is a peer — equal containers connected to neighboring cells. There is no hierarchy between cells.
-
-All players exist on the same grid simultaneously.
 
 Each cell generates on demand. Only cells near a player need to exist at any moment.
 

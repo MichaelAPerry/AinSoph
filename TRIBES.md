@@ -43,7 +43,7 @@ Lineage is read-only and append-only. It cannot be edited. It can only grow.
 
 ### PROPAGATION
 
-When progeny move to another player's sphere they bring their decan and their memory.
+When progeny cross by route to another player's world they bring their decan and their memory.
 
 They adapt to the new sphere — its economy, its politics, its conditions.
 

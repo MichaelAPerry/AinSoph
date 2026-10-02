@@ -256,3 +256,30 @@ On approval: the content enters the world. All three homilies are delivered to t
 On rejection: the content does not enter the world. All three homilies are delivered to the submitter. The NPC or player interprets them as they will and moves on.
 
 The council does not negotiate. It does not accept appeals. It spoke. The world heard or it didn't.
+
+---
+
+### WHAT A GRANT DOES IN THE ENGINE
+
+The model cannot write engine code. So the engine reads every skill or item petition as one of eight effects it knows: Sight, Hearing, Seafaring, Strength, Endurance, Shelter, Mending or Kinship. It picks by the words the petition uses (`scripts/Skills/Gift.cs`). That effect is sent to the seats with the petition, so they judge the real thing.
+
+- An approved **skill** or **item** becomes a gift its petitioner holds, and the effect applies to that being.
+- A petition that fits no effect is granted as **lore**: named and remembered, with nothing measurable changed, and the game says so.
+- An approved **rule** becomes a law in every NPC's prompt.
+
+The parables stay veiled. One plain line above them says what entered the world. The full table is in README.md, under *What a grant does*.
+
+### THE GODS' CHOICE
+
+Petitions that leave the choice to the gods, that ask for the world itself to change, or that no gift fits go one step further once approved. The model is asked once more, as the Council's will, to choose one act (creature, enemy, land, provision, season, gift or law) and fill in every detail itself. The engine checks the act, caps its numbers, carries it out and saves it. The act's proclamation, one sentence of scripture, is shown to the player and given to every NPC.
+
+When no act holds together, the gods' words are kept as an omen, which is story only. See `scripts/Council/GodsChoice.cs` and `scripts/GameRoot.Divine.cs`.
+
+### LAWS AND THE PLAYER
+
+Laws bind everyone. NPCs are given them in their prompts. The player's deeds (reaping a being, eating) are judged against them: a law that forbids something and touches the deed is put to the model as the Council's judge. A broken law brands the player for a day, and the Council will not hear a lawbreaker until it lifts.
+
+### THE FIRST ENCOUNTER
+
+Within five minutes of a new life, the Council sends a messenger. Its form and its words are chosen by the model. It tells the soul, in parable and then plainly, that there is one hidden altar, which way it lies, and what prayer there can do.
+

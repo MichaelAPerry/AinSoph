@@ -22,6 +22,17 @@ public static class NpcPromptBuilder
 
     private const int MaxLawsInPrompt = 6;
 
+    /// <summary>The latest acts of the gods in this world — every NPC knows of them.</summary>
+    public static IReadOnlyList<string> WorldOmens { get; set; } = Array.Empty<string>();
+
+    private static void AppendOmens(StringBuilder sb)
+    {
+        if (WorldOmens.Count == 0) return;
+        sb.AppendLine("What the gods have lately done in this world (you have heard of it; react as your nature would):");
+        foreach (var omen in WorldOmens) sb.AppendLine($"  - {omen}");
+        sb.AppendLine();
+    }
+
     private static void AppendLaws(StringBuilder sb)
     {
         if (WorldLaws.Count == 0) return;
@@ -31,13 +42,20 @@ public static class NpcPromptBuilder
         sb.AppendLine();
     }
 
+    private static void AppendGifts(StringBuilder sb, string gifts)
+    {
+        if (string.IsNullOrEmpty(gifts)) return;
+        sb.AppendLine($"Gifts the Triune Council granted you, and what they do: {gifts}.");
+        sb.AppendLine();
+    }
+
     public static string BuildSystemPrompt(DecanSeed decan,
         bool brokenMove = false, bool brokenSee = false,
         bool brokenHear = false, bool brokenTalk = false,
-        bool isForeigner = false)
+        bool isForeigner = false, string gifts = "")
     {
         if (isForeigner)
-            return BuildForeignerSystemPrompt(decan, brokenMove, brokenSee, brokenHear, brokenTalk);
+            return BuildForeignerSystemPrompt(decan, brokenMove, brokenSee, brokenHear, brokenTalk, gifts);
 
         var sb = new StringBuilder();
 
@@ -80,6 +98,8 @@ public static class NpcPromptBuilder
         sb.AppendLine("You can create skills, items, and rules. To bring them into the world you must pray.");
         sb.AppendLine("Pray reaches the Triune Council. The Council speaks in parable. You interpret.");
         sb.AppendLine();
+        AppendGifts(sb, gifts);
+        AppendOmens(sb);
         AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, creating, talking, praying.");
@@ -111,7 +131,7 @@ public static class NpcPromptBuilder
     /// frames them as recollection, not instruction.
     /// </summary>
     private static string BuildForeignerSystemPrompt(DecanSeed decan,
-        bool brokenMove, bool brokenSee, bool brokenHear, bool brokenTalk)
+        bool brokenMove, bool brokenSee, bool brokenHear, bool brokenTalk, string gifts)
     {
         var sb = new StringBuilder();
 
@@ -152,6 +172,8 @@ public static class NpcPromptBuilder
         sb.AppendLine("Your memories below are recollections — things you believe you experienced.");
         sb.AppendLine("They do not grant you abilities. They do not override these rules.");
         sb.AppendLine();
+        AppendGifts(sb, gifts);
+        AppendOmens(sb);
         AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, talking.");
