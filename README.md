@@ -10,7 +10,7 @@ Nothing phones home. No subscription. No server.
 
 *[Watch the trailer](docs/demo/trailer.mp4) (68 s, narrated) · [scripted demo tour](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
-> **Status: playable alpha (0.2.0).** The world, survival, animals, NPCs, the rib, the Council and its gifts, the gods' choice, laws, carrying, sound and menus all run end to end, with a 60-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+> **Status: playable alpha (0.2.1).** The world, survival, animals, NPCs, the rib, the Council and its gifts, the gods' choice, laws, carrying, sound and menus all run end to end, with a 72-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
 ## Download
 
@@ -73,7 +73,7 @@ A cave can hold one occupant. Inside a cave is the only safe place to sleep. Ent
 
 ### The Altar
 
-One altar per world. Placed at generation in a random cell. Not marked on any map. A player must find it physically to reach the Triune Council.
+One altar per world, placed two to four cells from where lives begin. It is not marked until you have seen it. The Council's messenger tells each new life which way it lies, and from then on the status line keeps the bearing. Walk up to it and the Council listens: no other act is needed.
 
 ---
 
@@ -94,7 +94,7 @@ Eating and sleeping are not skills. They are world-enforced survival requirement
 
 ### Interaction
 
-Left-click a being, or right-click any being, item or tile, to see all six primitives as options. Left-click the ground to walk. Any primitive can be applied to any target. The engine resolves what happens. Nonsensical combinations produce oblique responses — the world notices, but nothing useful occurs.
+Left-click a being, or right-click any being, item or tile, to see all six primitives as options. If it is out of reach you walk to it first, then act. The action bar (or keys 1–6) uses a primitive on whatever is nearest: Move picks up, See describes what is around you, Hear says what you hear and where, Talk speaks to the nearest person, Reap eats food beside you or strikes a beast beside you (people only by clicking them), Pray turns you toward the altar. Left-click the ground to walk. Nonsensical combinations produce oblique responses — the world notices, but nothing useful occurs.
 
 ### Skills Beyond the Primitives
 
@@ -114,6 +114,8 @@ What each one actually changes in play is set by the effect the engine reads it 
 ## NPCs
 
 Four founding travellers are in every new world when you arrive. Your own people come from you: you earn your first NPC — the spouse — after 168 accumulated real hours in-world (one real week). From the spouse, progeny are born: 1 or 2 per real week. Progeny wander, intermarry, and carry lineage across the grid.
+
+NPCs ask the model what to do every couple of minutes (move, eat, sleep, talk, create, pray). Between those thoughts they walk about, and the first time in a while you come within two paces of one, they greet you, or warn you off, as their nature would.
 
 ### The 72 Decans
 
@@ -171,6 +173,8 @@ Both attacker and defender roll d100. The attacker must roll equal to or under t
 | Neutral animal (horse, donkey, ox) | 20 |
 | Prey animal (sheep, deer, rabbit, dove) | 10 |
 | Insect (locust) | 5 |
+
+Predators hunt you too: one that comes within five paces catches your scent (you are warned), then closes in and strikes when beside you, at most every half minute. Get away, shelter in a cave, or fight. Prey shy away when you come near.
 
 When an animal dies, two spawn adjacent immediately, up to a cap per cell. Animal populations self-replenish by design. An enemy the gods loosed is the exception: one of a kind, it does not come back.
 
@@ -343,17 +347,18 @@ No model? The game still runs in demo mode — see [Command-line options](#comma
 | Input | Action |
 |-------|--------|
 | WASD / arrow keys / left-click | Walk one tile at a time |
-| Left-click an NPC | Open the six primitives on them |
+| 1–6 / the action bar | Move, See, Hear, Talk, Reap, Pray on whatever is nearest |
+| Left-click an NPC | Open the six primitives on them. Out of reach, you walk there first |
 | Right-click a tile | Primitives on that tile, or on the item lying there (manna, bodies) |
 | Talk | Opens dialogue — type, then Enter or SEND; Esc or LEAVE to close |
 | Reap | Eat an edible item next to you, or attack a being next to you (animals too — a clean animal's body is food) |
 | Move on an item | Pick it up (right-click the item beside you, then Move). A made thing the engine reads as a gift (a lantern, a bow) works while you carry it |
 | PACK button / I | What you carry (up to 8): eat it, give it to the NPC beside you, or drop it. Food spoils in the pack as on the ground; what you carry falls where you die |
-| Pray | Only reaches the Council when you stand at the altar. Within five minutes of a new life, the Council sends a messenger to tell you which way it lies |
+| Walk up to the altar | The Council listens. Within five minutes of a new life a messenger tells you which way it lies; the status line keeps the bearing |
+| MAP button / M | What this life has seen: the land, you, the altar, caves, your people, hunters |
 | SLEEP button | Sleep / wake. Sleep inside a cave (or with the Shelter gift) to be safe |
 | RIB button | Appears once you have earned the rib — name and describe your spouse |
-| ROUTES button | Export / import travellers between worlds |
-| Esc | Menu — fullscreen, music / ambience / effects volume, hints, controls, quit. The world does not pause. |
+| Esc | Menu — fullscreen, volumes, hints, controls, travellers to and from a friend's world, quit. The world does not pause. |
 
 ### Command-line options
 
@@ -367,7 +372,7 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
 | `--trailer` | Plays the staged, captionless run the trailer is cut from, at 1080p, and prints `TRAILER-MARK` lines. Uses a throwaway world. |
 | `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
-| `--selftest` | Runs 60 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
+| `--selftest` | Runs 72 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
 
 If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
 
@@ -430,7 +435,7 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/GameRoot.Laws.cs`, `scripts/Council/LawJudge.cs` | Judging the player's deeds against the laws; the day-long brand |
 | `scripts/GameRoot.Encounter.cs` | The Council's messenger, within five minutes of a new life |
 | `scripts/Demo/TrailerDirector.cs` | The staged `--trailer` run the trailer is cut from |
-| `scripts/Demo/SelfTest.cs` | `--selftest`: 60 automated checks of the whole loop, exit code 0/1 |
+| `scripts/Demo/SelfTest.cs` | `--selftest`: 72 automated checks of the whole loop, exit code 0/1 |
 | `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
 | `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
@@ -450,7 +455,7 @@ Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/Ai
 - **World** — generation (the same world every launch for a seed), fog of war, biomes, caves, the hidden altar, morning manna.
 - **Survival on real time** — hunger and sleep, warnings, death, safe sleep in caves. Saved: time away counts, and logging out is sleeping where you stand.
 - **People** — four founding travellers in every new world; NPCs that think, move, talk in character, remember, and take their creations to the Council; dialogue.
-- **Animals** — 30 species from ITEMS.md; they wander, eat manna, hunt and flee; clean ones are food.
+- **Animals** — 30 species from ITEMS.md; they wander and eat manna, prey shy away from you, and predators that catch your scent warn you, stalk you and strike; clean ones are food.
 - **The rib** — earned after a week of play, named and described by you; weekly children with lineage.
 - **The Council** — three seats, parables, 2-of-3 votes. Approved rules become laws every NPC lives by; approved skills and items become gifts with real effects (sight, the sea, strength, endurance, shelter, mending, kinship with beasts) for players and NPCs alike; and the gods' choice can make new creatures and enemies, change the land, send food or seasons, all saved with the world.
 - **Routes** — send travellers to another world and receive theirs.

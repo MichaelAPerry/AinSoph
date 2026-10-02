@@ -136,6 +136,8 @@ public class PlayerSaveData
     public string?   LawBroken     { get; set; }
     public DateTime? LawBrokenUtc  { get; set; }
     public bool      EncounterDone { get; set; }
+    public bool      AltarSeen     { get; set; }
+    public List<string> Explored   { get; set; } = new(); // "x,y" cells seen, for the map
 }
 
 /// <summary>A thing carried: the item as it lay in the world, and when it was picked up (food still spoils).</summary>

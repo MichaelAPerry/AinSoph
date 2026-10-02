@@ -223,18 +223,19 @@ namespace AinSoph.UI
             packBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.PackRequested); };
             _actionBarPanel.AddChild(packBtn);
 
-            // ── ROUTES button — far right of action bar ──
-            var routesBtn = new Button();
-            routesBtn.Text     = "ROUTES";
-            routesBtn.Size     = new Vector2(72, 38);
-            routesBtn.Position = new Vector2(w - 84, (barH - 38) / 2f);
-            routesBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.10f, 0.10f, 0.08f)));
-            routesBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.20f, 0.19f, 0.14f)));
-            routesBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
-            routesBtn.AddThemeFontSizeOverride("font_size", 10);
-            routesBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
-            routesBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RoutesOpenRequested); };
-            _actionBarPanel.AddChild(routesBtn);
+            // ── MAP button — far right of action bar (also M) ──
+            var mapBtn = new Button();
+            mapBtn.Text     = "MAP";
+            mapBtn.Size     = new Vector2(72, 38);
+            mapBtn.Position = new Vector2(w - 84, (barH - 38) / 2f);
+            mapBtn.TooltipText = "What you have seen (M)";
+            mapBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.10f, 0.10f, 0.08f)));
+            mapBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.20f, 0.19f, 0.14f)));
+            mapBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
+            mapBtn.AddThemeFontSizeOverride("font_size", 10);
+            mapBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
+            mapBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.MapRequested); };
+            _actionBarPanel.AddChild(mapBtn);
 
             // Build initial slots with the 6 primitives
             var primitives = new List<SkillType>
@@ -395,5 +396,6 @@ namespace AinSoph.UI
         [Signal] public delegate void SleepRequestedEventHandler();
         [Signal] public delegate void RibRequestedEventHandler();
         [Signal] public delegate void PackRequestedEventHandler();
+        [Signal] public delegate void MapRequestedEventHandler();
     }
 }

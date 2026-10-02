@@ -9,7 +9,7 @@ Target amd64-unicode   ; the game is x86-64 only, so the installer is too
 !include "MUI2.nsh"
 
 !ifndef VERSION
-  !define VERSION "0.2.0"
+  !define VERSION "0.2.1"
 !endif
 !ifndef SRC
   !define SRC "../../build/steam/windows"

@@ -279,6 +279,93 @@ namespace AinSoph.Demo
             Check("the screen scales with the window",
                   ProjectSettings.GetSetting("display/window/stretch/mode").AsString() == "canvas_items");
 
+            // ── Real clicks and keys, as a player plays ───────────────────
+            // (Every action from the click menu once did nothing; nothing but real input catches that.)
+            var scene = GameRoot.Scene!;
+            scene.CloseDialogue(); scene.CloseMenu();
+            var here = scene.PlayerTile;
+
+            var manna = GameRoot.Items!.SpawnManna(here.X + 1, here.Y);
+            scene.RefreshMap();
+            var ateBeforeClick = player.Survival.LastAteUtc;
+            await ClickTile(here.X + 1, here.Y, MouseButton.Right);
+            var food = GameRoot.Items.All.FirstOrDefault(i => i.Id == scene.PrimitiveMenu.TargetId);
+            Check("right-clicking food opens the primitives on it", scene.PrimitiveMenu.IsOpen &&
+                  food is { Edible: true } && food.TileX == here.X + 1 && food.TileY == here.Y, scene.PrimitiveMenu.TargetId);
+            await ClickControl(scene.PrimitiveMenu.ButtonFor(SkillType.Reap));
+            await Wait(0.3);
+            Check("choosing Reap from the menu eats it", player.Survival.LastAteUtc > ateBeforeClick &&
+                  food != null && !GameRoot.Items.All.Any(i => i.Id == food.Id), scene.WorldText);
+            foreach (var left in GameRoot.Items.All.Where(i => System.Math.Max(System.Math.Abs(i.TileX - here.X), System.Math.Abs(i.TileY - here.Y)) <= 1).ToList())
+                GameRoot.Items.Remove(left.Id); // a clear patch for the next checks
+
+            var talker = GameRoot.LiveNpcs.First(n => !n.BrokenTalk);
+            talker.SetTile(here.X - 1, here.Y);
+            scene.MoveNpc(talker.NpcId, here.X - 1, here.Y);
+            await ClickTile(here.X - 1, here.Y, MouseButton.Left);
+            Check("clicking a person opens the primitives on them", scene.PrimitiveMenu.IsOpen &&
+                  scene.PrimitiveMenu.TargetId == talker.NpcId, scene.PrimitiveMenu.TargetId);
+            await ClickControl(scene.PrimitiveMenu.ButtonFor(SkillType.Talk));
+            await Wait(0.3);
+            Check("choosing Talk from the menu opens the conversation", scene.DialogueOpen);
+            scene.CloseDialogue();
+
+            var stone = GameRoot.Items.Spawn("Lantern", "crafted", here.X, here.Y + 1, description: "a lantern");
+            await PressKey(Key.Key1);
+            Check("key 1 (Move) picks up the thing beside you", player.Carried.Any(c => c.Item.Id == stone.Id));
+
+            await PressKey(Key.Key4);
+            await Wait(0.3);
+            Check("key 4 (Talk) speaks to the nearest person", scene.DialogueOpen);
+            scene.CloseDialogue();
+
+            // Far away: you walk there, then talk
+            var far = GameRoot.LiveNpcs.FirstOrDefault(n => n != talker && !n.BrokenTalk) ?? talker;
+            far.SetTile(here.X + 6, here.Y);
+            scene.MoveNpc(far.NpcId, here.X + 6, here.Y);
+            root.UsePrimitive(far.NpcId, SkillType.Talk);
+            for (int i = 0; i < 40 && !scene.DialogueOpen; i++) await Wait(0.25);
+            Check("talking to someone far away walks you to them first", scene.DialogueOpen,
+                  $"player at {scene.PlayerTile}, them at {far.TileX},{far.TileY}");
+            scene.CloseDialogue();
+
+            // The altar: near the start, and stepping up to it opens the Council
+            var (altarX, altarY) = (GameRoot.Altar!.TileX + int.Parse(GameRoot.Altar.CellId.Split(',')[0]) * 8,
+                                    GameRoot.Altar.TileY + int.Parse(GameRoot.Altar.CellId.Split(',')[1]) * 8);
+            Check("the altar lies within a walk of the start", System.Math.Max(System.Math.Abs(altarX), System.Math.Abs(altarY)) <= 40,
+                  $"{altarX},{altarY}");
+            scene.MovePlayerTo(new Vector2I(altarX, altarY + 1));
+            await Wait(0.3);
+            Check("stepping up to the altar opens the Council", scene.DialogueOpen && scene.DialogueSpeech.Contains("altar"));
+            scene.CloseDialogue();
+            scene.MovePlayerTo(here);
+            await Wait(0.2);
+
+            // The world moves while you watch
+            var npcSpots = GameRoot.LiveNpcs.ToDictionary(n => n.NpcId, n => (n.TileX, n.TileY));
+            await Wait(7.0);
+            Check("NPCs walk about between their thoughts",
+                  GameRoot.LiveNpcs.Any(n => npcSpots.TryGetValue(n.NpcId, out var b) && b != (n.TileX, n.TileY)));
+
+            here = scene.PlayerTile;
+            var wolf = root.StageAnimal("wolf", here.X + 5, here.Y);
+            if (wolf != null)
+            {
+                int D() => System.Math.Max(System.Math.Abs(wolf.TileX - here.X), System.Math.Abs(wolf.TileY - here.Y));
+                var d0 = D();
+                for (int i = 0; i < 12 && !scene.WorldText.Contains("scent"); i++) await Wait(0.5);
+                var warned = scene.WorldText.Contains("caught your scent");
+                for (int i = 0; i < 16 && D() >= d0 && D() > 2; i++) await Wait(0.5);
+                Check("a predator warns you, then stalks you", warned && D() < d0, $"{d0} → {D()}");
+                GameRoot.LiveAnimals.Remove(wolf);
+                scene.RemoveNpc(wolf.AnimalId);
+            }
+
+            await PressKey(Key.M);
+            Check("M opens the map", root.GetChildren().OfType<MapScreen>().Any() && player.Explored.Count > 0,
+                  $"{player.Explored.Count} cells seen");
+            await PressKey(Key.M);
+
             // ── Talk ──────────────────────────────────────────────────────
             var npc = GameRoot.LiveNpcs.First(n => !n.BrokenTalk);
             var reply = await npc.RespondToDialogueAsync("Where can I find shelter tonight?", new SituationContext());
@@ -296,6 +383,39 @@ namespace AinSoph.Demo
             GameRoot.Scene?.RemoveNpc(lion.AnimalId);
             p.Survival.EndSleep(System.DateTime.UtcNow);
             return strikes;
+        }
+
+        // ── Real input ────────────────────────────────────────────────────
+
+        /// <summary>A click at a point in the game's own 1280×720 coordinates, delivered as the window would.</summary>
+        private async Task ClickAt(Vector2 screen, MouseButton button)
+        {
+            foreach (var pressed in new[] { true, false })
+            {
+                GetViewport().PushInput(new InputEventMouseButton
+                    { ButtonIndex = button, Pressed = pressed, Position = screen, GlobalPosition = screen }, inLocalCoords: true);
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
+        }
+
+        private Task ClickTile(int tx, int ty, MouseButton button) =>
+            ClickAt(GetViewport().GetCanvasTransform() * new Vector2(tx * 32 + 16, ty * 32 + 16), button);
+
+        private async Task ClickControl(Control? control)
+        {
+            if (control == null) { Fail("a control to click", "not found"); return; }
+            await ClickAt(control.GetGlobalRect().GetCenter(), MouseButton.Left);
+        }
+
+        private async Task PressKey(Key key)
+        {
+            foreach (var pressed in new[] { true, false })
+            {
+                GetViewport().PushInput(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = pressed }, inLocalCoords: true);
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
         }
 
         private static Tile TileAt(int x, int y)

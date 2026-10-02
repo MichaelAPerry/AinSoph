@@ -42,6 +42,11 @@ namespace AinSoph
         /// <summary>The player pressed RIB.</summary>
         public event System.Action? RibRequested;
         public event System.Action? PackRequested;
+        public event System.Action<SkillType>? QuickActionRequested;
+        public event System.Action? MapRequested;
+
+        /// <summary>Travellers to and from friends' worlds (from the Esc menu).</summary>
+        public void OpenRoutes() => _routesScreen.Open();
 
         // ── Child nodes ───────────────────────────────────────────────────
         private Camera2D        _camera;
@@ -238,9 +243,24 @@ namespace AinSoph
                 GetViewport().SetInputAsHandled();
                 return;
             }
+            if (ev is InputEventKey { Pressed: true, Echo: false, Keycode: Key.M })
+            {
+                MapRequested?.Invoke();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            // 1–6: the six primitives, acting on what is nearest
+            if (ev is InputEventKey { Pressed: true, Echo: false } k && k.Keycode >= Key.Key1 && k.Keycode <= Key.Key6)
+            {
+                var skills = new[] { SkillType.Move, SkillType.See, SkillType.Hear, SkillType.Talk, SkillType.Reap, SkillType.Pray };
+                QuickActionRequested?.Invoke(skills[k.Keycode - Key.Key1]);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
             if (ev is not InputEventMouseButton mb || !mb.Pressed) return;
 
-            var worldPos   = GetGlobalMousePosition();
+            // Where the click landed, from the event itself (not the system cursor)
+            var worldPos   = GetCanvasTransform().AffineInverse() * mb.Position;
             var targetTile = new Vector2I(Mathf.FloorToInt(worldPos.X / 32f), Mathf.FloorToInt(worldPos.Y / 32f));
             var npc        = NpcAt(targetTile);
 
@@ -369,6 +389,8 @@ namespace AinSoph
         public void SetGifts(System.Collections.Generic.IReadOnlyList<Skills.Gift> gifts) => _hud.SetGifts(gifts);
         public void SetSurvivalStatus(string text, bool urgent) => _hud.SetStatus(text, urgent);
         public bool DialogueOpen => _dialogue.Visible;
+        public string WorldText => _worldTextLabel.Text; // the last line the world said (self-test)
+        public PrimitiveMenu PrimitiveMenu => _primitiveMenu; // for the self-test's real clicks
         public string DialogueSpeech => _dialogue.SpeechText;
         public void TypeDialogue(string text)   => _dialogue.SetInputText(text);
         public void SubmitDialogue(string text) => _dialogue.SubmitText(text);
@@ -468,8 +490,8 @@ namespace AinSoph
             _routesScreen.OnClose += () => { /* nothing special needed */ };
             AddChild(_routesScreen);
 
-            _hud.Connect(HUD.SignalName.RoutesOpenRequested,
-                Callable.From(() => _routesScreen.Open()));
+            _hud.Connect(HUD.SignalName.MapRequested,
+                Callable.From(() => MapRequested?.Invoke()));
 
             _hud.Connect(HUD.SignalName.SleepRequested,
                 Callable.From(OnSleepRequested));
@@ -495,16 +517,10 @@ namespace AinSoph
             hudLayer.AddChild(_worldTextLabel);
         }
 
-        private void OnSkillSelected(int skillType)
-        {
-            if ((SkillType)skillType == SkillType.Pray && Grid != null)
-            {
-                var cell = TileToCell(_playerTile);
-                var cellId = $"{cell.X},{cell.Y}";
-                if (cellId == AltarCellId)
-                    OpenAltar((petition) => EmitSignal(SignalName.AltarPetition, petition));
-            }
-        }
+        /// <summary>The action bar: each primitive acts on what is nearest (GameRoot.QuickAction).</summary>
+        private void OnSkillSelected(int skillType) => QuickActionRequested?.Invoke((SkillType)skillType);
+
+        public bool TileVisibleToPlayer(int tileX, int tileY) => _renderer.TileVisible(tileX, tileY);
 
         private void PositionWorldText()
         {

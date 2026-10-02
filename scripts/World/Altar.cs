@@ -17,17 +17,19 @@ public class Altar
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Place the altar in a random passable cell at a random non-water tile.
+    /// Place the altar in a passable cell two to four cells from the origin, where
+    /// lives begin — hidden and unmarked, but within a walk (it used to be anywhere
+    /// in a hundred cells each way, and in play it could not be found).
     /// </summary>
     public static Altar Place(WorldGrid grid, int worldSeed)
     {
         var rng = new Random(worldSeed ^ 0xA17A4);
 
-        // Try up to 100 candidate cells — pick any passable biome
         for (var attempt = 0; attempt < 100; attempt++)
         {
-            var gx   = rng.Next(-50, 51);
-            var gy   = rng.Next(-50, 51);
+            var gx   = rng.Next(-4, 5);
+            var gy   = rng.Next(-4, 5);
+            if (Math.Max(Math.Abs(gx), Math.Abs(gy)) < 2) continue;
             var cell = grid.GetOrGenerate(gx, gy);
 
             if (!BiomeData.Get(cell.Biome).Passable) continue;
