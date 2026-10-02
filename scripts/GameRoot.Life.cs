@@ -30,10 +30,13 @@ public partial class GameRoot
     private static readonly TimeSpan PredatorStrikeInterval = TimeSpan.FromSeconds(30);
     private const int StalkRange = 5;
 
+    /// <summary>Holds NPCs and animals still — the self-test sets it while it clicks on exact tiles.</summary>
+    public static bool LifePaused { get; set; }
+
     /// <summary>Called every frame.</summary>
     private void TickLife(double delta)
     {
-        if (Player == null || _worldScene == null || string.IsNullOrEmpty(Player.Name)) return;
+        if (LifePaused || Player == null || _worldScene == null || string.IsNullOrEmpty(Player.Name)) return;
         _npcWanderTimer -= delta;
         if (_npcWanderTimer <= 0)
         {
@@ -50,8 +53,11 @@ public partial class GameRoot
         var rng = Random.Shared;
         foreach (var npc in LiveNpcs)
         {
-            if (npc.BrokenMove || npc.State is NpcState.Sleeping or NpcState.Talking or NpcState.Creating or NpcState.Praying) continue;
-            if (Dist(npc.TileX, npc.TileY) > 30 || rng.NextDouble() > 0.3) continue;
+            // Asleep, at work on a creation, or at prayer: they stay put. A "talking" decision does not
+            // freeze them (it used to, for minutes) — only someone you are actually talking to waits.
+            if (npc.BrokenMove || npc.State is NpcState.Sleeping or NpcState.Creating or NpcState.Praying) continue;
+            if (_worldScene?.DialogueOpen == true && Dist(npc.TileX, npc.TileY) <= 2) continue;
+            if (Dist(npc.TileX, npc.TileY) > 30 || rng.NextDouble() > 0.4) continue;
             int x = npc.TileX + rng.Next(-1, 2), y = npc.TileY + rng.Next(-1, 2);
             if ((x, y) == (npc.TileX, npc.TileY) || !IsPassableTile(x, y) || IsOccupied(x, y) || AnimalAt(x, y) != null) continue;
             if (Player != null && (x, y) == (Player.TileX, Player.TileY)) continue;
@@ -91,10 +97,13 @@ public partial class GameRoot
 
     // ── Animals ──────────────────────────────────────────────────────────
 
+    /// <summary>Whether a predator has caught the player's scent (it warned, and now stalks).</summary>
+    public bool IsStalking(string animalId) => _stalkWarnedUtc.ContainsKey(animalId);
+
     /// <summary>Prey shy from you; predators stalk you, warn, close in and strike.</summary>
     private void StalkAndFlee()
     {
-        if (Player == null || _worldScene == null || string.IsNullOrEmpty(Player.Name)) return;
+        if (LifePaused || Player == null || _worldScene == null || string.IsNullOrEmpty(Player.Name)) return;
         var now = DateTime.UtcNow;
         var safe = Player.Survival.IsSleeping && (Player.Survival.IsInCave || Player.Gifts.Has(Skills.GiftEffect.Shelter));
 
@@ -141,6 +150,7 @@ public partial class GameRoot
             {
                 int nx = a.TileX + dx, ny = a.TileY + dy;
                 if ((dx, dy) == (0, 0) || (nx, ny) == (Player.TileX, Player.TileY)) continue;
+                if (Math.Max(Math.Abs(nx - Player.TileX), Math.Abs(ny - Player.TileY)) > d) continue; // never back away
                 if (AnimalCanStand(sp, nx, ny) && !IsOccupied(nx, ny) && AnimalAt(nx, ny) == null) { MoveAnimal(a, nx, ny); break; }
             }
         }

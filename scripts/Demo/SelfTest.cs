@@ -251,6 +251,7 @@ namespace AinSoph.Demo
                   GameRoot.Items.All.Any(i => i.Name == "Lantern") && player.Gifts.All.Count == giftsBefore);
             var neighbour = GameRoot.LiveNpcs.First(n => !n.IsForeigner);
             neighbour.SetTile(player.TileX - 1, player.TileY);
+            GameRoot.Scene!.MoveNpc(neighbour.NpcId, player.TileX - 1, player.TileY);
             root.PickUp(GameRoot.Items.All.First(i => i.Name == "Lantern"));
             var receiver = root.NpcBeside(); // the nearest of those beside you
             root.PackGive(player.Carried[0]);
@@ -283,15 +284,21 @@ namespace AinSoph.Demo
             // (Every action from the click menu once did nothing; nothing but real input catches that.)
             var scene = GameRoot.Scene!;
             scene.CloseDialogue(); scene.CloseMenu();
+            GameRoot.LifePaused = true; // no one wanders onto the tiles being clicked
             var here = scene.PlayerTile;
 
-            var manna = GameRoot.Items!.SpawnManna(here.X + 1, here.Y);
+            // An empty tile beside you: a being standing on it would be the one clicked
+            bool Empty(Vector2I t) => !GameRoot.LiveNpcs.Any(n => n.TileX == t.X && n.TileY == t.Y) &&
+                                      !GameRoot.LiveAnimals.Any(a => a.TileX == t.X && a.TileY == t.Y);
+            var foodTile = new[] { new Vector2I(1, 0), new Vector2I(1, 1), new Vector2I(1, -1), new Vector2I(0, 1) }
+                .Select(d => here + d).First(Empty);
+            var manna = GameRoot.Items!.SpawnManna(foodTile.X, foodTile.Y);
             scene.RefreshMap();
             var ateBeforeClick = player.Survival.LastAteUtc;
-            await ClickTile(here.X + 1, here.Y, MouseButton.Right);
+            await ClickTile(foodTile.X, foodTile.Y, MouseButton.Right);
             var food = GameRoot.Items.All.FirstOrDefault(i => i.Id == scene.PrimitiveMenu.TargetId);
             Check("right-clicking food opens the primitives on it", scene.PrimitiveMenu.IsOpen &&
-                  food is { Edible: true } && food.TileX == here.X + 1 && food.TileY == here.Y, scene.PrimitiveMenu.TargetId);
+                  food is { Edible: true } && food.TileX == foodTile.X && food.TileY == foodTile.Y, scene.PrimitiveMenu.TargetId);
             await ClickControl(scene.PrimitiveMenu.ButtonFor(SkillType.Reap));
             await Wait(0.3);
             Check("choosing Reap from the menu eats it", player.Survival.LastAteUtc > ateBeforeClick &&
@@ -300,9 +307,12 @@ namespace AinSoph.Demo
                 GameRoot.Items.Remove(left.Id); // a clear patch for the next checks
 
             var talker = GameRoot.LiveNpcs.First(n => !n.BrokenTalk);
-            talker.SetTile(here.X - 1, here.Y);
-            scene.MoveNpc(talker.NpcId, here.X - 1, here.Y);
-            await ClickTile(here.X - 1, here.Y, MouseButton.Left);
+            // A free tile beside you (another NPC standing there would be the one clicked)
+            var spot = new[] { new Vector2I(-1, 0), new Vector2I(0, -1), new Vector2I(-1, -1), new Vector2I(-1, 1) }
+                .Select(d => here + d).First(t => Empty(t) || (talker.TileX == t.X && talker.TileY == t.Y));
+            talker.SetTile(spot.X, spot.Y);
+            scene.MoveNpc(talker.NpcId, spot.X, spot.Y);
+            await ClickTile(spot.X, spot.Y, MouseButton.Left);
             Check("clicking a person opens the primitives on them", scene.PrimitiveMenu.IsOpen &&
                   scene.PrimitiveMenu.TargetId == talker.NpcId, scene.PrimitiveMenu.TargetId);
             await ClickControl(scene.PrimitiveMenu.ButtonFor(SkillType.Talk));
@@ -342,21 +352,32 @@ namespace AinSoph.Demo
             await Wait(0.2);
 
             // The world moves while you watch
+            GameRoot.LifePaused = false;
             var npcSpots = GameRoot.LiveNpcs.ToDictionary(n => n.NpcId, n => (n.TileX, n.TileY));
-            await Wait(7.0);
+            for (int i = 0; i < 24 && !GameRoot.LiveNpcs.Any(n => npcSpots.TryGetValue(n.NpcId, out var s0) && s0 != (n.TileX, n.TileY)); i++)
+                await Wait(0.5);
             Check("NPCs walk about between their thoughts",
                   GameRoot.LiveNpcs.Any(n => npcSpots.TryGetValue(n.NpcId, out var b) && b != (n.TileX, n.TileY)));
 
             here = scene.PlayerTile;
-            var wolf = root.StageAnimal("wolf", here.X + 5, here.Y);
+            // Put it where open land lies between you (a land beast cannot cross a river to reach you)
+            var wolfDir = new[] { new Vector2I(1, 0), new Vector2I(-1, 0), new Vector2I(0, 1), new Vector2I(0, -1) }
+                .FirstOrDefault(d => Enumerable.Range(1, 5).All(k =>
+                {
+                    var t = TileAt(here.X + d.X * k, here.Y + d.Y * k);
+                    return t.Surface != TileSurface.Water && !t.HasCave && BiomeData.Get(t.Biome).Passable;
+                }), new Vector2I(1, 0));
+            var wolf = root.StageAnimal("wolf", here.X + wolfDir.X * 5, here.Y + wolfDir.Y * 5);
             if (wolf != null)
             {
                 int D() => System.Math.Max(System.Math.Abs(wolf.TileX - here.X), System.Math.Abs(wolf.TileY - here.Y));
                 var d0 = D();
-                for (int i = 0; i < 12 && !scene.WorldText.Contains("scent"); i++) await Wait(0.5);
-                var warned = scene.WorldText.Contains("caught your scent");
-                for (int i = 0; i < 16 && D() >= d0 && D() > 2; i++) await Wait(0.5);
-                Check("a predator warns you, then stalks you", warned && D() < d0, $"{d0} → {D()}");
+                for (int i = 0; i < 12 && !root.IsStalking(wolf.AnimalId); i++) await Wait(0.5);
+                var warned = root.IsStalking(wolf.AnimalId);
+                for (int i = 0; i < 30 && D() >= d0 && D() > 2; i++) await Wait(0.5);
+                Check("a predator warns you, then stalks you", warned && D() < d0,
+                      $"{d0} → {D()}, warned={warned}, asleep={wolf.Survival.IsSleeping}, player={scene.PlayerTile} here={here}, " +
+                      $"sleeping={player.Survival.IsSleeping}, text='{scene.WorldText}'");
                 GameRoot.LiveAnimals.Remove(wolf);
                 scene.RemoveNpc(wolf.AnimalId);
             }

@@ -446,7 +446,7 @@ public partial class GameRoot : Node
 
         // Keep the NPC queue moving — each NPC decides itself whether it is due to think
         _npcPumpTimer -= delta;
-        if (_npcPumpTimer <= 0 && NpcQueue is not null && !NpcQueue.IsBusy)
+        if (_npcPumpTimer <= 0 && NpcQueue is not null && !NpcQueue.IsBusy && !LifePaused)
         {
             _npcPumpTimer = IsDemo ? NpcPumpSeconds / 2 : NpcPumpSeconds;
             _ = NpcQueue.ProcessNextAsync(BuildNpcSituation, _cts.Token);
@@ -887,7 +887,7 @@ public partial class GameRoot : Node
 
     private void WanderAnimals()
     {
-        if (Player == null) return;
+        if (Player == null || LifePaused) return;
         var rng = Random.Shared;
         foreach (var a in LiveAnimals)
         {
