@@ -73,10 +73,10 @@ The exe's icon (`assets/icon.ico`) and version info come from the export preset,
 Pushing a version tag builds everything in GitHub Actions and publishes it:
 
 ```
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-`.github/workflows/release.yml` downloads Godot, the export templates and the model, runs the self-test against the real model, builds the installer and the Linux build, and attaches both to a GitHub Release. It can also be run by hand from the **Actions** tab → **Release** → **Run workflow**: give the version tag (e.g. `v0.1.0`) and the release creates that tag on the commit it built; tick *draft* to review before it goes public. Every push also runs `.github/workflows/ci.yml`: build and `--selftest`.
+`.github/workflows/release.yml` downloads Godot, the export templates and the model, runs the self-test against the real model, builds the installer and the Linux build, and attaches both to a GitHub Release. It can also be run by hand from the **Actions** tab → **Release** → **Run workflow**: give the version tag (e.g. `v0.2.0`) and the release creates that tag on the commit it built; tick *draft* to review before it goes public. Every push also runs `.github/workflows/ci.yml`: build and `--selftest`.
 
 ### itch.io
 

@@ -65,7 +65,7 @@ public class RouteManager
             BrokenTalk    = npc.BrokenTalk,
             IsForeigner   = false, // they are native until they cross
             Lineage       = npc.Lineage.ToList(),
-            Gifts         = npc.Gifts.All.ToList(), // what a traveller was granted travels with them
+            Gifts         = npc.Gifts.All.ToList(), // remembered on arrival, but suspended there (SKILLS.md)
         }).ToList();
 
         _save.ExportMigrationPacket(saveData, outputPath);

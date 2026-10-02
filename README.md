@@ -10,7 +10,7 @@ Nothing phones home. No subscription. No server.
 
 *[Watch the trailer](docs/demo/trailer.mp4) (68 s, narrated) · [scripted demo tour](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
-> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 60-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+> **Status: playable alpha (0.2.0).** The world, survival, animals, NPCs, the rib, the Council and its gifts, the gods' choice, laws, carrying, sound and menus all run end to end, with a 60-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
 ## Download
 
@@ -24,9 +24,9 @@ Windows may warn that the installer is from an unknown publisher (it isn't code-
 
 A living world on a grid of sovereign cells. Every cell is its own territory. The grid expands without limit. You and the NPCs live in it under identical rules.
 
-NPCs are not scripted. They are powered by a local LLM running on the player's own machine — no cloud, no API key, no latency. Each NPC has a personality drawn from 72 types, a memory of four slots that accumulates across their life, and the capacity to create content — skills, items, rules — that enters the world as equal world content.
+NPCs are not scripted. They are powered by a local LLM running on the player's own machine — no cloud, no API key. On a modest CPU an NPC takes a few seconds to answer. Each NPC has a personality drawn from 72 types, a memory of four slots that accumulates across their life, and the capacity to create content — skills, items, rules — that enters the world as equal world content.
 
-Players and NPCs can create anything that passes the Triune Council: three LLM instances that evaluate submissions and respond in parable. The Council speaks. The world hears or it doesn't.
+Players and NPCs can create anything that passes the Triune Council: three seats, each a turn of the same local model, that judge what is asked and answer in parable. What they grant really changes the world: gifts with effects, laws everyone lives by, and, when the gods choose, new creatures, enemies, land and seasons. The Council speaks. The world hears or it doesn't.
 
 ---
 
@@ -88,13 +88,13 @@ Every player character and NPC is born with these. They cannot be created. They 
 | **Hear** | Audio perception |
 | **Talk** | Communication with NPCs |
 | **Reap** | Covers both killing and eating. Reap on a living target initiates kill resolution (d100). Reap on an edible item satisfies the day's food requirement. Same act. The world makes no distinction. |
-| **Pray** | Reaches the Triune Council. At first does nothing visible. Discovered, not explained. |
+| **Pray** | Reaches the Triune Council, but only at the hidden altar. Anywhere else, nothing visible happens. Early in each life the Council sends a messenger to say which way the altar lies. |
 
 Eating and sleeping are not skills. They are world-enforced survival requirements. Failure to eat within 24 real hours is death. Failure to sleep 8 continuous real hours within 24 is death. Warnings fire at hour 23. Bodies stay in the world.
 
 ### Interaction
 
-Right-click any entity or tile to see all six primitives as options. Left-click to move. Any primitive can be applied to any target. The engine resolves what happens. Nonsensical combinations produce oblique responses — the world notices, but nothing useful occurs.
+Left-click a being, or right-click any being, item or tile, to see all six primitives as options. Left-click the ground to walk. Any primitive can be applied to any target. The engine resolves what happens. Nonsensical combinations produce oblique responses — the world notices, but nothing useful occurs.
 
 ### Skills Beyond the Primitives
 
@@ -138,7 +138,7 @@ NPCs are not passive. They can create skills, items, and rules autonomously — 
 
 ### Foreigners
 
-An NPC that migrates from another world via a route is a foreigner. Permanently. All prior skills suspend on arrival — they cannot be recovered. Foreigners can Move, See, Hear, Talk, and Reap edible items. They cannot kill. They cannot pray to the Council. They still require food and sleep. The engine enforces this in three layers: sandboxed LLM prompt, engine override, decision-application check.
+An NPC that migrates from another world via a route is a foreigner. Permanently. All prior skills suspend on arrival — they cannot be recovered. (The gifts they held cross with them only as a memory.) Foreigners can Move, See, Hear, Talk, and Reap edible items. They cannot kill. They cannot pray to the Council. They still require food and sleep. The engine enforces this in three layers: sandboxed LLM prompt, engine override, decision-application check.
 
 Foreigner status is permanent. There is no path to full standing. It is the condition of having crossed.
 
@@ -172,7 +172,7 @@ Both attacker and defender roll d100. The attacker must roll equal to or under t
 | Prey animal (sheep, deer, rabbit, dove) | 10 |
 | Insect (locust) | 5 |
 
-When an animal dies, two spawn adjacent immediately. Animal populations self-replenish by design.
+When an animal dies, two spawn adjacent immediately, up to a cap per cell. Animal populations self-replenish by design. An enemy the gods loosed is the exception: one of a kind, it does not come back.
 
 ---
 
@@ -180,10 +180,10 @@ When an animal dies, two spawn adjacent immediately. Animal populations self-rep
 
 | Requirement | Rule |
 |-------------|------|
-| Eat | Once per 24 real hours. Satisfied by Reap on any edible item. Warning at hour 23. Death at hour 24. |
+| Eat | Once per 24 real hours (36 with the Endurance gift). Satisfied by Reap on any edible item, or eating from your pack. Warning an hour before. Death when it runs out. |
 | Sleep | 8 continuous real hours per 24-hour window. Warning at hour 23. Death at hour 24. |
-| Safe sleep | Inside a claimed cave only. One occupant per cave. |
-| Exposed sleep | Outside a cave. Vulnerable to Reap rolls from any entity. |
+| Safe sleep | Inside a claimed cave (one occupant per cave), or anywhere with the Shelter gift. Predators cannot reach you. |
+| Exposed sleep | In the open. A predator beside you strikes, and you defend at half strength. |
 | Logout | Character persists in the world sleeping. If not in a cave, they are exposed. The world does not pause. |
 
 The SLEEP button appears in the HUD after 8 real hours of being awake. Clicking it begins sleep. Logging out while awake does the same automatically. The game auto-wakes the character after 8 continuous hours.
@@ -223,13 +223,7 @@ A **skill** or **item** becomes a *gift* its petitioner holds. The model cannot 
 
 A petition that fits none of them goes to the gods (below). Gifts show on the action bar beside the six primitives (hover for details) and are saved with you. NPCs are told what their own gifts do, and what yours do when you speak to them. A second gift with the same effect adds nothing. A character who dies loses their gifts; laws stay.
 
-Gifts work for NPCs too. Strength, Endurance, Shelter, Mending and Kinship apply to them, and a traveller's gifts cross a route with them.
-
-**Laws bind you too.** When you reap a being or eat, the deed is judged against the world's laws, but only laws that forbid something and touch what you did. A broken law brands you for a day: the Council will not hear your prayers, the status line says *Lawbreaker*, and every NPC knows.
-
-**The first encounter.** Within five minutes of a new life, the Council sends a messenger. The model chooses its form (a heron of white fire, a woman woven from reeds…) and its words. It appears beside you, speaks, and tells you plainly which way the hidden altar lies and what prayer there can do. It happens once per life, then it is gone.
-
-Sleeping matters: a predator cannot reach anyone asleep in a cave (or sheltered by a gift), and anyone asleep in the open defends at half strength.
+Gifts work for NPCs too: Strength, Endurance, Shelter, Mending and Kinship apply to them. A traveller who crosses a route remembers their gifts, but as a foreigner cannot use them.
 
 ### The gods' choice
 
@@ -250,9 +244,17 @@ If the Council approves, the model is asked once more, as the gods' will, what e
 | Gift | Its name and which of the eight effects | As above |
 | Law | Its name and words | Every NPC lives by it |
 
-Every act ends with a **proclamation**, one sentence of scripture saying what was done. The player sees it, and so does every NPC: the gods' latest deeds go into NPC prompts, so they react to the new beast, the flood or the long night as their nature would. If the model's reply holds no act but the gods said something, their words are kept as an **omen**. That is story only, and nothing measurable changes. A petition that names the land in it becomes that land change.
+Every act ends with a **proclamation**, one sentence of scripture saying what was done. The player sees it, and so does every NPC: the gods' latest deeds go into NPC prompts, so they react to the new beast, the flood or the long night as their nature would. If the model's reply holds no act but the gods said something, their words are kept as an **omen**. That is story only, and nothing measurable changes. An omen whose words describe the land (a flood, a forest) becomes that land change.
 
 What the model asks for, the engine checks. Only these acts exist, every number is capped (at most 6 creatures, 12 provisions, land 4 tiles across, a season of 24 hours), all words pass the content filter, the altar and caves are never changed, and the sea never rises under a living being. NPC petitions reach the gods too, at most once every 30 minutes. Everything the gods make is saved with the world.
+
+### Laws bind you too
+
+When you reap a being or eat, the deed is judged against the world's laws, but only laws that forbid something and touch what you did. A broken law brands you for a day: the Council will not hear your prayers, the status line says *Lawbreaker*, and every NPC knows.
+
+### The first encounter
+
+Within five minutes of a new life, the Council sends a messenger. The model chooses its form (a heron of white fire, a woman woven from reeds…) and its words. It appears beside you, speaks, and tells you plainly which way the hidden altar lies and what prayer there can do. It happens once per life, then it is gone.
 
 ---
 
@@ -260,15 +262,15 @@ What the model asks for, the engine checks. Only these acts exist, every number 
 
 When a player or NPC dies, their body remains in the world as an item. It is physical. You and the NPCs can interact with it. What happens to it is up to them.
 
-**Player death:** The player's body stays. The player creates a new character with no continuity — no knowledge of the old character's location, possessions, or history. The new character descends.
+**Player death:** The player's body stays, and what they carried falls beside it. The player creates a new character with no continuity — no knowledge of the old character's location, possessions, or history, and none of their gifts. The new character descends, and the Council sends them a messenger of their own.
 
 ---
 
 ## Routes
 
-A route is a connection between two player worlds. Both players must consent. Neither can open one unilaterally.
+A route is a connection between two players' worlds. Both players must consent. Neither can open one unilaterally. In practice it is a file: one player exports travellers (ROUTES), sends the file to a friend, and the friend imports it.
 
-When a route opens, up to 1/10 of the NPC population near each border migrates. Selection is random. The migrating NPC's decan and all four memory slots travel intact. They arrive in the new world as foreigners, permanently.
+Up to 1/10 of the world's NPCs migrate, chosen at random. Your spouse never leaves. The migrating NPC's decan and all four memory slots travel intact. They arrive in the new world as foreigners, permanently.
 
 Exported NPCs are removed from the origin world. They don't come back.
 
@@ -276,7 +278,7 @@ Exported NPCs are removed from the origin world. They don't come back.
 
 ## Time
 
-Time is real. The world clock syncs to the player's local clock. 24 real hours is 24 world hours. Skills that cost time cost real time. A player can perform an action actively or set a character to perform it and walk away. The world does not judge.
+Time is real. The world clock syncs to the player's local clock. 24 real hours is 24 world hours: night falls at 20:00 and lifts at 06:00, and manna falls each morning. Seasons the gods send last real hours too. The world does not pause, and it does not judge.
 
 ---
 
@@ -332,7 +334,7 @@ This file is in `.gitignore`. Do not commit it.
 2. **Build → Build Solution** (or `dotnet build` in the project root)
 3. Press **Play**
 
-The model file will be found in `models/` during development. In production builds it is extracted from the PCK on first launch.
+The model file is found in `models/` during development. Release builds ship it in `models/` beside the executable.
 
 No model? The game still runs in demo mode — see [Command-line options](#command-line-options).
 
@@ -348,7 +350,7 @@ No model? The game still runs in demo mode — see [Command-line options](#comma
 | Move on an item | Pick it up (right-click the item beside you, then Move). A made thing the engine reads as a gift (a lantern, a bow) works while you carry it |
 | PACK button / I | What you carry (up to 8): eat it, give it to the NPC beside you, or drop it. Food spoils in the pack as on the ground; what you carry falls where you die |
 | Pray | Only reaches the Council when you stand at the altar. Within five minutes of a new life, the Council sends a messenger to tell you which way it lies |
-| SLEEP button | Sleep / wake. Sleep inside a cave to be safe |
+| SLEEP button | Sleep / wake. Sleep inside a cave (or with the Shelter gift) to be safe |
 | RIB button | Appears once you have earned the rib — name and describe your spouse |
 | ROUTES button | Export / import travellers between worlds |
 | Esc | Menu — fullscreen, music / ambience / effects volume, hints, controls, quit. The world does not pause. |
@@ -454,7 +456,16 @@ Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/Ai
 - **Routes** — send travellers to another world and receive theirs.
 - **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
 
-**Not yet:** controller / Steam Deck input, and a full real-week playthrough on the shipped model.
+- **Carrying** — pick things up with Move; eat, give or drop them from the pack; made things work as gifts while carried.
+- **Laws for everyone** — your deeds are judged against the laws; a lawbreaker is not heard by the Council for a day.
+- **The first encounter** — the Council's messenger, early in every life.
+- **Any window size** — the 1280×720 layout scales to fullscreen and large windows.
+
+**Not yet:**
+- a test on a real Windows PC (only under Wine so far), and a code-signed installer;
+- a way to report a bad AI line from inside the game;
+- controller / Steam Deck input;
+- a full real-week playthrough on the shipped model, and a balance pass on the gifts and the gods' acts.
 
 ---
 
@@ -468,7 +479,7 @@ GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/build-steam.sh
 
 This produces `build/steam/windows/` and `build/steam/linux/`. Each is a folder (the executable, a `data_AinSoph_*` folder with the .NET and llama.cpp libraries, and `models/`), about 1.3 GB. The plain **Windows Desktop** / **Linux/X11** presets bundle the model inside the game package and extract it on first launch instead.
 
-For a Windows installer — one `AinSoph-Setup-0.1.0.exe` that installs the game, adds Start-menu and desktop shortcuts, and an uninstaller:
+For a Windows installer — one `AinSoph-Setup-<version>.exe` that installs the game, adds Start-menu and desktop shortcuts, and an uninstaller:
 
 ```
 GODOT=/path/to/Godot_v4.4.1-stable_mono_linux.x86_64 tools/package-windows.sh

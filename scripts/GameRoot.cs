@@ -594,9 +594,12 @@ public partial class GameRoot : Node
 
             var brain = new NpcBrain(data.Id, decan, Llm, nowUtc) { Name = data.Name };
             brain.Lineage.AddRange(data.Lineage);
-            brain.Gifts.Restore(data.Gifts, data.LastMendedUtc);
             brain.Memory.Write(NPC.MemorySlot.Will,    data.MemoryWill);
             brain.Memory.Write(NPC.MemorySlot.Thought, data.MemoryThought);
+            // A foreigner's skills are suspended on arrival (SKILLS.md): what they held is only a memory here
+            if (data.Gifts.Count > 0)
+                brain.Memory.Write(MemorySlot.Thought, $"{data.MemoryThought} In my old world I held " +
+                    $"{string.Join(", ", data.Gifts.Select(g => g.Name))}; here they do not answer me.".Trim());
             brain.Memory.Write(NPC.MemorySlot.Feeling, data.MemoryFeeling);
             brain.Memory.Write(NPC.MemorySlot.Action,  data.MemoryAction);
             brain.BrokenMove  = data.BrokenMove;

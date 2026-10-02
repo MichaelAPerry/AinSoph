@@ -2,7 +2,7 @@ name: Release
 
 # Builds the Windows installer and the Linux build, with the model, and
 # publishes them as a GitHub Release. Run it by pushing a version tag
-# (git tag v0.1.0 && git push origin v0.1.0), or from the Actions tab
+# (git tag v0.2.0 && git push origin v0.2.0), or from the Actions tab
 # ("Run workflow", give the tag) — then the release creates the tag itself
 # on the commit it built.
 
@@ -12,9 +12,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Version tag to create and release, e.g. v0.1.0"
+        description: "Version tag to create and release, e.g. v0.2.0"
         required: true
-        default: "v0.1.0"
+        default: "v0.2.0"
       draft:
         description: "Publish as a draft (review before it goes public)"
         type: boolean
