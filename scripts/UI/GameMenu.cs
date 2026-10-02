@@ -75,15 +75,22 @@ public partial class GameMenu : CanvasLayer
 
         _controls = MakeLabel(
             "Walk — WASD, arrow keys, or left-click the ground\n" +
-            "Left-click a being — the six primitives (Move, See, Hear, Talk, Reap, Pray)\n" +
+            "1–6 or the action bar — Move, See, Hear, Talk, Reap, Pray on what is nearest\n" +
+            "Left-click a being — the six primitives on it; far away, you walk there first\n" +
             "Right-click a tile — act on it, or on what lies there (manna, bodies)\n" +
             "Reap — eat what is edible beside you, or strike a being beside you\n" +
             "Move on a thing beside you — pick it up.  PACK or I — eat, give or drop what you carry\n" +
-            "Pray at the hidden altar — ask for a skill, a thing or a law, or leave the choice to the gods\n" +
+            "Walk up to the hidden altar and the Council listens — ask for a skill, a thing or a law, or leave the choice to the gods\n" +
+            "MAP or M — what you have seen\n" +
             "SLEEP — sleep or wake; only a cave (or a gift of shelter) is safe\n" +
             "RIB — after a week of play, give form to your spouse\n" +
             "Esc — this menu", 12, Muted, wrap: true);
         _controls.Visible = false;
+        panel.AddChild(MakeButton("TRAVELLERS — SEND TO OR RECEIVE FROM A FRIEND'S WORLD", () =>
+        {
+            Toggle();
+            GameRoot.Scene?.OpenRoutes();
+        }));
         panel.AddChild(MakeButton("CONTROLS", () => _controls.Visible = !_controls.Visible));
         panel.AddChild(_controls);
 

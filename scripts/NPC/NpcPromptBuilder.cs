@@ -101,7 +101,7 @@ public static class NpcPromptBuilder
         AppendGifts(sb, gifts);
         AppendOmens(sb);
         AppendLaws(sb);
-        sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
+        sb.AppendLine("Every little while you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, creating, talking, praying.");
         sb.AppendLine();
         sb.AppendLine("Return only valid JSON matching this shape:");
@@ -175,7 +175,7 @@ public static class NpcPromptBuilder
         AppendGifts(sb, gifts);
         AppendOmens(sb);
         AppendLaws(sb);
-        sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
+        sb.AppendLine("Every little while you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, talking.");
         sb.AppendLine();
         sb.AppendLine("Return only valid JSON matching this shape:");

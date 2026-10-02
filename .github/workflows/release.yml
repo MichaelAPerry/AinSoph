@@ -14,7 +14,7 @@ on:
       tag:
         description: "Version tag to create and release, e.g. v0.2.0"
         required: true
-        default: "v0.2.0"
+        default: "v0.2.1"
       draft:
         description: "Publish as a draft (review before it goes public)"
         type: boolean

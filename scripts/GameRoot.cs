@@ -89,6 +89,8 @@ public partial class GameRoot : Node
             : $"Ate {Ago(ate)} ago · Slept {Ago(slept)} ago";
         if (Player.Survival.IsInCave && !Player.Survival.IsSleeping) text += " · In a cave";
         if (Player.IsBranded(now)) text += " · Lawbreaker";
+        if (AltarKnown && !Player.Survival.IsSleeping && AltarDirection() is { } way && way != "right beside you")
+            text += $" · Altar: {way.Replace("to the ", "")}";
         _worldScene.SetSurvivalStatus(text, ate >= Player.Gifts.HungerHours - 4 || slept >= 20);
     }
 
@@ -132,7 +134,7 @@ public partial class GameRoot : Node
             // 1. LLM — loading a 1.9 GB model takes seconds; keep the main thread responsive
             await Task.Run(() => Llm.Initialize(modelPath));
             GD.Print(IsDemo ? "GameRoot: demo mode — scripted NPCs and Council" : "GameRoot: LLM ready");
-            if (IsDemo) NpcBrain.ThinkInterval = DemoThinkInterval;
+            NpcBrain.ThinkInterval = IsDemo ? DemoThinkInterval : LiveThinkInterval;
 
             // 2. Decans
             GD.Print("GameRoot: loading decans...");
@@ -243,6 +245,12 @@ public partial class GameRoot : Node
             Player.LawBroken     = playerData.LawBroken;
             Player.LawBrokenUtc  = playerData.LawBrokenUtc;
             Player.EncounterDone = playerData.EncounterDone;
+            Player.AltarSeen     = playerData.AltarSeen;
+            foreach (var c in playerData.Explored)
+            {
+                ParseCellId(c, out var ex, out var ey);
+                Player.Explored.Add((ex, ey));
+            }
             GD.Print($"GameRoot: player '{Player.Name}' loaded — {Player.AccumulatedPlayHours:F1}h played" +
                      (Player.HasSpouse ? ", has spouse" : Player.HasRib ? ", rib earned" : ""));
         }
@@ -351,6 +359,8 @@ public partial class GameRoot : Node
             ShowAllAnimals();
             scene.RibRequested += OnRibRequested;
             scene.PackRequested += OpenPack;
+            scene.QuickActionRequested += QuickAction;
+            scene.MapRequested += OpenMap;
             AddChild(new AinSoph.UI.GameMenu());
             if (!tour && !selfTest) AddChild(new AinSoph.UI.Hints()); // the tour has its own captions
             if (IsDemo) scene.ShowWorldText("Demo mode — the voices you hear are scripted.");
@@ -424,16 +434,19 @@ public partial class GameRoot : Node
         {
             _animalWanderTimer = AnimalWanderSeconds;
             WanderAnimals();
+            StalkAndFlee();
             HuntWithEnemies();
             ListenForPredators();
         }
 
         // The Council's first encounter, within five minutes of a new life
         TickEncounter();
+        TickPlayerPlace();
+        TickLife(delta);
 
         // Keep the NPC queue moving — each NPC decides itself whether it is due to think
         _npcPumpTimer -= delta;
-        if (_npcPumpTimer <= 0 && NpcQueue is not null && !NpcQueue.IsBusy)
+        if (_npcPumpTimer <= 0 && NpcQueue is not null && !NpcQueue.IsBusy && !LifePaused)
         {
             _npcPumpTimer = IsDemo ? NpcPumpSeconds / 2 : NpcPumpSeconds;
             _ = NpcQueue.ProcessNextAsync(BuildNpcSituation, _cts.Token);
@@ -874,12 +887,14 @@ public partial class GameRoot : Node
 
     private void WanderAnimals()
     {
-        if (Player == null) return;
+        if (Player == null || LifePaused) return;
         var rng = Random.Shared;
         foreach (var a in LiveAnimals)
         {
             if (a.Survival.IsSleeping || a.Species is not { } sp) continue;
             if (Math.Abs(a.TileX - Player.TileX) > 24 || Math.Abs(a.TileY - Player.TileY) > 16) continue;
+            // A hunter on your trail does not wander off it (StalkAndFlee moves it)
+            if (sp.Hunts || (a.AnimalType == AnimalType.Predator && Dist(a.TileX, a.TileY) <= StalkRange)) continue;
             if (rng.NextDouble() > (sp.Habitat == AnimalHabitat.Bird ? 0.5 : 0.3)) continue;
 
             int x = a.TileX + rng.Next(-1, 2), y = a.TileY + rng.Next(-1, 2);
@@ -1089,6 +1104,8 @@ public partial class GameRoot : Node
             LawBroken    = Player.LawBroken,
             LawBrokenUtc = Player.LawBrokenUtc,
             EncounterDone = Player.EncounterDone,
+            AltarSeen    = Player.AltarSeen,
+            Explored     = Player.Explored.Select(c => $"{c.X},{c.Y}").ToList(),
 
             // Rib — play time must survive restarts or a week of play never adds up
             AccumulatedPlayHours = Player.TotalPlayHours,
@@ -1565,7 +1582,7 @@ public partial class GameRoot : Node
         var req = new Skills.InteractionRequest
         {
             ActorId    = Player.Id,
-            Primitive  = skill.ToString().ToLower(),
+            Primitive  = Skills.PrimitiveSkills.FromSkillType(skill), // "primitive.reap" — the resolver matches on these ids
             TargetId   = targetId,
             TargetName = npc?.Name ?? animal?.Name ?? item?.Name ?? targetId.Replace("tile:", ""),
             TargetType = targetId.StartsWith("tile:")                ? Skills.InteractionTarget.Tile
@@ -1579,16 +1596,25 @@ public partial class GameRoot : Node
                  : animal != null ? Math.Max(Math.Abs(animal.TileX - Player.TileX), Math.Abs(animal.TileY - Player.TileY))
                  : item != null   ? Math.Max(Math.Abs(item.TileX - Player.TileX), Math.Abs(item.TileY - Player.TileY))
                  : 0;
-        if ((skill == Skills.SkillType.Reap && dist > 1) || (skill == Skills.SkillType.Talk && dist > 2))
+        // Out of reach: walk there first, then act (a being may move, so follow it)
+        int reach = skill == Skills.SkillType.Talk ? 2 : 1;
+        bool needsReach = skill is Skills.SkillType.Reap or Skills.SkillType.Talk ||
+                          (skill == Skills.SkillType.Move && item != null);
+        if (needsReach && dist > reach)
         {
-            _worldScene.ShowWorldText(npc != null || animal != null ? $"The {req.TargetName} is too far away." : "It is out of reach.");
+            Func<Vector2I?> where = () =>
+                npc != null    ? (LiveNpcs.Contains(npc) ? new Vector2I(npc.TileX, npc.TileY) : null) :
+                animal != null ? (LiveAnimals.Contains(animal) ? new Vector2I(animal.TileX, animal.TileY) : null) :
+                item != null   ? (Items!.All.Contains(item) ? new Vector2I(item.TileX, item.TileY) : null) : null;
+            if (dist > 24) { _worldScene.ShowWorldText($"The {req.TargetName} is too far away."); return; }
+            if (await Approach(where, reach)) OnPrimitiveUsed(targetId, skillType);
+            else _worldScene.ShowWorldText($"You cannot reach the {req.TargetName}.");
             return;
         }
 
         // Move on a thing beside you → pick it up
         if (skill == Skills.SkillType.Move && item != null)
         {
-            if (dist > 1) { _worldScene.ShowWorldText("It is out of reach."); return; }
             PickUp(item);
             return;
         }
@@ -1660,8 +1686,10 @@ public partial class GameRoot : Node
             AinSoph.Audio.Sound.Play("pray");
             if (IsAtAltar())
                 _worldScene.OpenAltar(petition => OnAltarPetition(petition));
+            else if (AltarKnown && AltarDirection() is { } way)
+                _worldScene.ShowWorldText($"You pray. The Council hears only at its altar, which lies {way}. Walk up to it and it will listen.");
             else
-                _worldScene.ShowWorldText("You pray. The world does not move.");
+                _worldScene.ShowWorldText("You pray. The world does not move. Somewhere there is an altar where the Council listens.");
             return;
         }
 

@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AinSoph.Skills;
 
 namespace AinSoph.UI
@@ -88,6 +89,12 @@ namespace AinSoph.UI
             Visible = true;
         }
 
+        public bool IsOpen => Visible;
+
+        /// <summary>The button for a primitive — the self-test clicks it like a player would.</summary>
+        public Button? ButtonFor(SkillType skill) =>
+            _buttonRow.GetChildren().OfType<Button>().FirstOrDefault(b => b.TooltipText == skill.ToString());
+
         public void Close()
         {
             Visible    = false;
@@ -160,9 +167,11 @@ namespace AinSoph.UI
             btn.Pressed += () => AinSoph.Audio.Sound.Play("click");
             btn.Pressed += () =>
             {
-                var chosen = skill;
+                // Take the target before closing: Close() clears it, and an action sent to
+                // an empty target does nothing (every primitive from this menu used to)
+                var target = TargetId;
                 Close();
-                OnPrimitiveChosen?.Invoke(TargetId == string.Empty ? TargetId : TargetId, chosen);
+                OnPrimitiveChosen?.Invoke(target, skill);
             };
 
             return btn;

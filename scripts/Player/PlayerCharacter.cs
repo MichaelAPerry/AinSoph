@@ -39,6 +39,12 @@ public class PlayerCharacter
     // The Council's first encounter (GameRoot.Encounter.cs) — once per life
     public bool EncounterDone { get; set; }
 
+    // Whether this life has seen the altar (then the status line guides you to it)
+    public bool AltarSeen { get; set; }
+
+    // Cells this life has seen, for the map (GameRoot.Map.cs)
+    public HashSet<(int X, int Y)> Explored { get; } = new();
+
     // Inventory
     public List<string> InventoryItemIds { get; } = new();
 
