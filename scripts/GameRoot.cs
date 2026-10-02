@@ -165,6 +165,7 @@ public partial class GameRoot : Node
             Laws.Clear();
             Laws.AddRange(worldData.Laws);
             PublishLaws();
+            LoadDivine(worldData);
             _worldCreatedUtc = worldData.CreatedUtc;
             GD.Print($"GameRoot: loaded world '{WorldName}' (seed {worldSeed})");
         }
@@ -179,6 +180,7 @@ public partial class GameRoot : Node
                 WorldName  = WorldName
             };
             Save.SaveWorld(newWorld);
+            LoadDivine(null);
             GD.Print($"GameRoot: new world created (seed {worldSeed})");
         }
         _worldSeed = worldSeed;
@@ -186,6 +188,7 @@ public partial class GameRoot : Node
         // 4. World grid + altar
         GD.Print("GameRoot: generating world grid + altar...");
         Grid  = new WorldGrid(worldSeed);
+        Grid.CellGenerated += ApplyTerrainEdits; // land the gods changed
         Altar = Altar.Place(Grid, worldSeed);
         GD.Print($"GameRoot: altar placed at {Altar.CellId} " +
                  $"[{Altar.TileX},{Altar.TileY}] in {Altar.Biome}");
@@ -419,6 +422,7 @@ public partial class GameRoot : Node
         {
             _animalWanderTimer = AnimalWanderSeconds;
             WanderAnimals();
+            HuntWithEnemies();
             ListenForPredators();
         }
 
@@ -540,6 +544,8 @@ public partial class GameRoot : Node
         Dictionary<string, List<(int TileX, int TileY)>> spawned)
     {
         if (Items is null) return;
+        if (Season.Is("famine")) { GD.Print("GameRoot: famine — no manna this morning"); return; }
+        var plenty = Season.Is("plenty");
 
         int total = 0;
         foreach (var (cellKey, tiles) in spawned)
@@ -551,6 +557,7 @@ public partial class GameRoot : Node
             foreach (var (lx, ly) in tiles)
             {
                 var item = Items.SpawnManna(cx * 8 + lx, cy * 8 + ly);
+                if (plenty && lx < 7) Items.SpawnManna(cx * 8 + lx + 1, cy * 8 + ly); // twice over
 
                 // Register on tile so NPCs can find it via SituationContext
                 cell?.GetTile(lx, ly).ItemIds.Add(item.Id);
@@ -728,7 +735,7 @@ public partial class GameRoot : Node
     private void SpawnAnimalPair(AnimalBrain dead)
     {
         var species = dead.Species;
-        if (species == null) return;
+        if (species == null || species.Unique) return; // one of a kind: gone when it dies
 
         var cell = CellOf(dead.TileX, dead.TileY);
         if (LiveAnimals.Count(a => a.CellId == cell) >= MaxAnimalsPerCell) return;
@@ -1042,14 +1049,16 @@ public partial class GameRoot : Node
         Save.RecordSave();
 
         // World metadata — the seed is what regenerates the same world next launch
-        Save.SaveWorld(new Data.WorldSaveData
+        var worldSave = new Data.WorldSaveData
         {
             WorldSeed    = _worldSeed,
             CreatedUtc   = _worldCreatedUtc,
             LastSavedUtc = DateTime.UtcNow,
             WorldName    = WorldName,
             Laws         = Laws.ToList(),
-        });
+        };
+        SaveDivine(worldSave);
+        Save.SaveWorld(worldSave);
 
         // Player — not until they have a name (quit during creation = never arrived)
         if (!string.IsNullOrWhiteSpace(Player.Name))
@@ -1274,6 +1283,12 @@ public partial class GameRoot : Node
 
         switch (sub.Type.ToLowerInvariant())
         {
+            // Nothing in the fixed list fits, or it was left to them: the gods answer (now and then)
+            case "choice":
+            case "skill" when NeedsTheGods(sub):
+            case "item" when NeedsTheGods(sub):
+                LetTheGodsAnswer(npc, sub);
+                break;
             case "item":
                 // Made and shown beside its maker; the maker holds what it does
                 var (tx, ty) = FindFreeTileNear(npc.TileX, npc.TileY);
@@ -1702,58 +1717,80 @@ public partial class GameRoot : Node
             verdict = await Council.SubmitAsync(oblique, _cts.Token);
         }
 
-        // What the verdict does, said plainly first — then all three parables, whatever the outcome
-        var sb = new System.Text.StringBuilder();
-        if (verdict.Approved && verdict.Submission is { } granted)
-            sb.AppendLine(granted.Type.Equals("rule", StringComparison.OrdinalIgnoreCase)
-                ? $"» A new law enters the world: {granted.Name}. Every NPC will live by it."
-                : $"» {Gifts.Announce(new Gift { Name = granted.Name, Effect = Gifts.Classify($"{granted.Name} {granted.Description}") }, false)}");
-        else if (verdict.Responses.Count > 0)
-            sb.AppendLine("» Nothing enters the world.");
-        sb.AppendLine();
+        // All three parables, whatever the outcome — below one plain line saying what the verdict did
+        var parables = new System.Text.StringBuilder();
         foreach (var response in verdict.Responses)
         {
-            sb.AppendLine($"[ {response.Seat.ToUpper()} — {response.Vote.ToUpper()} ]");
-            sb.AppendLine(response.Homily);
-            sb.AppendLine();
+            parables.AppendLine($"[ {response.Seat.ToUpper()} — {response.Vote.ToUpper()} ]");
+            parables.AppendLine(response.Homily);
+            parables.AppendLine();
         }
         AinSoph.Audio.Sound.Play("council");
-        _worldScene.SetDialogueSpeech(verdict.Responses.Count > 0
-            ? sb.ToString().Trim()
-            : "The Council is silent. Nothing enters the world.");
+        if (verdict.Responses.Count == 0)
+        {
+            _worldScene.SetDialogueSpeech("The Council is silent. Nothing enters the world.");
+            return;
+        }
 
-        // Apply approved content to the world
-        if (verdict.Approved && verdict.Submission != null)
-            ApplyPlayerGrant(verdict.Submission);
+        string headline;
+        if (verdict.Approved && verdict.Submission is { } granted)
+        {
+            if (NeedsTheGods(granted))
+                _worldScene.SetDialogueSpeech("» The gods are choosing what enters the world…\n\n" + parables.ToString().Trim());
+            headline = await ApplyPlayerGrantAsync(granted);
+        }
+        else headline = "» Nothing enters the world.";
+        _worldScene.SetDialogueSpeech(headline + "\n\n" + parables.ToString().Trim());
     }
 
-    /// <summary>What the Council approved for the player enters the world: a gift held, or a law.</summary>
-    public void ApplyPlayerGrant(Council.CouncilSubmission sub)
+    /// <summary>
+    /// What the Council approved for the player enters the world: a gift held, a law,
+    /// or — for a petition the engine cannot read as a gift, or one left to the gods —
+    /// whatever the gods choose. Returns the plain line the player is shown.
+    /// </summary>
+    public async Task<string> ApplyPlayerGrantAsync(Council.CouncilSubmission sub)
     {
-        if (Player == null || _worldScene == null) return;
+        if (Player == null || _worldScene == null) return "» Nothing enters the world.";
         GD.Print($"GameRoot: Council approved '{sub.Name}' ({sub.Type}) for {Player.Name}");
 
-        switch (sub.Type.ToLower())
+        if (sub.Type.Equals("rule", StringComparison.OrdinalIgnoreCase))
         {
-            case "skill":
-            case "item":
-                // A skill is learned, an item is carried — either way it is held, and its effect applies
-                if (sub.Type.Equals("skill", StringComparison.OrdinalIgnoreCase))
-                    Player.SkillIds.Add(sub.Name.ToLower().Replace(" ", "_"));
-                var gift = GrantGift(Player.Gifts, sub, sub.Type.ToLower(), out var alreadyHeld);
-                _worldScene.ShowWorldText(Gifts.Announce(gift, alreadyHeld));
-                _worldScene.SetGifts(Player.Gifts.All);
-                _worldScene.RefreshMap(); // Sight changes what you see
-                SaveAll();
-                break;
-
-            case "rule":
-                AddLaw(sub.Name, sub.Description, Player.Id);
-                _worldScene.ShowWorldText($"The Council accepts the rule: {sub.Name}");
-                SaveAll();
-                break;
+            AddLaw(sub.Name, sub.Description, Player.Id);
+            _worldScene.ShowWorldText($"The Council accepts the rule: {sub.Name}");
+            SaveAll();
+            return $"» A new law enters the world: {sub.Name}. Every NPC will live by it.";
         }
+
+        if (NeedsTheGods(sub))
+        {
+            var act = await GodsChoice.AskAsync(Llm, sub.Description, GodsChoice.IsDeferral(sub.Description),
+                                                PlaceName(Player.TileX, Player.TileY), _cts.Token);
+            if (act != null && Player != null)
+            {
+                var deed = ApplyDivineAct(act, Player.Id, Player.Gifts, Player.TileX, Player.TileY);
+                _worldScene.ShowWorldText(deed);
+                return string.IsNullOrEmpty(act.Proclamation) ? $"» {deed}" : $"» {deed}\n\u201c{act.Proclamation}\u201d";
+            }
+            if (sub.Type == "choice") return "» The gods are silent. Nothing enters the world.";
+            // A skill or item the gods would not shape: it is kept as lore
+        }
+
+        // A skill is learned, an item is carried — either way it is held, and its effect applies
+        if (sub.Type.Equals("skill", StringComparison.OrdinalIgnoreCase))
+            Player!.SkillIds.Add(sub.Name.ToLower().Replace(" ", "_"));
+        var gift = GrantGift(Player!.Gifts, sub, sub.Type.ToLower() == "item" ? "item" : "skill", out var alreadyHeld);
+        var line = Gifts.Announce(gift, alreadyHeld);
+        _worldScene.ShowWorldText(line);
+        _worldScene.SetGifts(Player.Gifts.All);
+        _worldScene.RefreshMap(); // Sight changes what you see
+        SaveAll();
+        return $"» {line}";
     }
+
+    /// <summary>The gods decide when the petition leaves it to them, or when no fixed gift fits it.</summary>
+    private static bool NeedsTheGods(Council.CouncilSubmission sub) =>
+        sub.Type == "choice" ||
+        (sub.Type is "skill" or "item" && Gifts.Classify($"{sub.Name} {sub.Description}") == GiftEffect.Lore);
 
     private static void ParseCellId(string cellId, out int x, out int y)
     {

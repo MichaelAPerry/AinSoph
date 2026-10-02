@@ -24,7 +24,19 @@ public record AnimalSpecies(
     private static readonly Color Tame     = new(0.85f, 0.75f, 0.60f);
     private static readonly Color Wild     = new(0.95f, 0.95f, 0.90f);
 
-    public static readonly AnimalSpecies[] All =
+    // ── Made by the gods (see Divine.cs) ─────────────────────────────────
+
+    /// <summary>Kill number, when the gods set one; otherwise it follows the type (RULES.md).</summary>
+    public int?   Strength { get; init; }
+    /// <summary>An enemy: stalks the nearest being and strikes when beside it.</summary>
+    public bool   Hunts    { get; init; }
+    /// <summary>One of a kind: not placed in new land, not replaced when it dies.</summary>
+    public bool   Unique   { get; init; }
+    /// <summary>What it looks like, in the gods' words.</summary>
+    public string Look     { get; init; } = string.Empty;
+    public bool   Divine   { get; init; }
+
+    private static readonly AnimalSpecies[] Created =
     {
         // Land — edible (clean)
         new("ox",       AnimalType.Neutral,  AnimalHabitat.Land,  true,  Beast, Tame),
@@ -64,11 +76,36 @@ public record AnimalSpecies(
         new("locust",   AnimalType.Insect,   AnimalHabitat.Land,  true,  Bug,   Wild),
     };
 
+    private static readonly List<AnimalSpecies> _all = new(Created);
     private static readonly Dictionary<string, AnimalSpecies> ByName =
-        All.ToDictionary(s => s.Name);
+        _all.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every species in the world: the thirty from the start, and any the gods have made since.</summary>
+    public static IReadOnlyList<AnimalSpecies> All => _all;
+
+    /// <summary>Species the gods made — saved with the world.</summary>
+    public static IEnumerable<AnimalSpecies> Made => _all.Where(s => s.Divine);
 
     public static AnimalSpecies? Get(string name) =>
         ByName.TryGetValue(name, out var s) ? s : null;
+
+    /// <summary>Add (or replace) a species made by the gods.</summary>
+    public static void Register(AnimalSpecies species)
+    {
+        if (ByName.TryGetValue(species.Name, out var old))
+        {
+            if (!old.Divine) return; // the first thirty are never replaced
+            _all.Remove(old);
+        }
+        _all.Add(species);
+        ByName[species.Name] = species;
+    }
+
+    /// <summary>Forget the gods' species — a different world is loading.</summary>
+    public static void ClearMade()
+    {
+        foreach (var s in _all.Where(s => s.Divine).ToList()) { _all.Remove(s); ByName.Remove(s.Name); }
+    }
 
     /// <summary>Fish live on water tiles; everything else on dry land.</summary>
     public bool CanStandOn(TileSurface surface) =>

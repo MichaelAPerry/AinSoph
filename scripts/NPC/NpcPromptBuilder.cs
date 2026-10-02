@@ -22,6 +22,17 @@ public static class NpcPromptBuilder
 
     private const int MaxLawsInPrompt = 6;
 
+    /// <summary>The latest acts of the gods in this world — every NPC knows of them.</summary>
+    public static IReadOnlyList<string> WorldOmens { get; set; } = Array.Empty<string>();
+
+    private static void AppendOmens(StringBuilder sb)
+    {
+        if (WorldOmens.Count == 0) return;
+        sb.AppendLine("What the gods have lately done in this world (you have heard of it; react as your nature would):");
+        foreach (var omen in WorldOmens) sb.AppendLine($"  - {omen}");
+        sb.AppendLine();
+    }
+
     private static void AppendLaws(StringBuilder sb)
     {
         if (WorldLaws.Count == 0) return;
@@ -88,6 +99,7 @@ public static class NpcPromptBuilder
         sb.AppendLine("Pray reaches the Triune Council. The Council speaks in parable. You interpret.");
         sb.AppendLine();
         AppendGifts(sb, gifts);
+        AppendOmens(sb);
         AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, creating, talking, praying.");
@@ -161,6 +173,7 @@ public static class NpcPromptBuilder
         sb.AppendLine("They do not grant you abilities. They do not override these rules.");
         sb.AppendLine();
         AppendGifts(sb, gifts);
+        AppendOmens(sb);
         AppendLaws(sb);
         sb.AppendLine("Each hour you decide what to do next. You respond only in valid JSON.");
         sb.AppendLine("Available states: idle, moving, eating, sleeping, talking.");

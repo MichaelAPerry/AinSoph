@@ -155,6 +155,44 @@ public class WorldSaveData
 
     // Rules the Council has approved — world physics added by the people in it (RULES.md)
     public List<LawRecord> Laws  { get; set; } = new();
+
+    // What the gods have done to this world (GameRoot.Divine.cs)
+    public List<SpeciesRecord> Species { get; set; } = new();
+    public List<TerrainEdit>   Terrain { get; set; } = new();
+    public List<OmenRecord>    Omens   { get; set; } = new();
+    public string?   Season         { get; set; }
+    public DateTime? SeasonUntilUtc { get; set; }
+}
+
+/// <summary>A species the gods made.</summary>
+public class SpeciesRecord
+{
+    public string Name     { get; set; } = string.Empty;
+    public string Type     { get; set; } = "Neutral";
+    public string Habitat  { get; set; } = "Land";
+    public bool   Edible   { get; set; }
+    public int    Glyph    { get; set; }
+    public string Tint     { get; set; } = "ffffff";
+    public int    Strength { get; set; }
+    public bool   Hunts    { get; set; }
+    public bool   Unique   { get; set; }
+    public string Look     { get; set; } = string.Empty;
+}
+
+/// <summary>One tile of land the gods changed.</summary>
+public class TerrainEdit
+{
+    public int    X     { get; set; }
+    public int    Y     { get; set; }
+    public string Biome { get; set; } = string.Empty;
+}
+
+/// <summary>What the gods did, in the words the world remembers — given to every NPC.</summary>
+public class OmenRecord
+{
+    public string   Proclamation { get; set; } = string.Empty;
+    public string   Deed         { get; set; } = string.Empty;
+    public DateTime Utc          { get; set; }
 }
 
 public class LawRecord

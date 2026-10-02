@@ -20,6 +20,7 @@ public class WorldClock
     public static bool IsNight()
     {
         if (ForceNight is { } forced) return forced;
+        if (Season.Is("long night")) return true; // the gods sent darkness
         var local = DateTime.Now;
         return local.Hour < 6 || local.Hour >= 20;
     }

@@ -269,3 +269,9 @@ The model cannot write engine code. So the engine reads every skill or item peti
 
 The parables stay veiled. One plain line above them says what entered the world. The full table is in README.md, under *What a grant does*.
 
+### THE GODS' CHOICE
+
+Petitions that leave the choice to the gods, that ask for the world itself to change, or that no gift fits go one step further once approved. The model is asked once more, as the Council's will, to choose one act (creature, enemy, land, provision, season, gift or law) and fill in every detail itself. The engine checks the act, caps its numbers, carries it out and saves it. The act's proclamation, one sentence of scripture, is shown to the player and given to every NPC.
+
+When no act holds together, the gods' words are kept as an omen, which is story only. See `scripts/Council/GodsChoice.cs` and `scripts/GameRoot.Divine.cs`.
+

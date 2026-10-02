@@ -127,7 +127,7 @@ public class CellGenerator
         {
             if (cellRng.NextDouble() > chance) continue;
 
-            var options = AnimalSpecies.All.Where(pick).ToArray();
+            var options = AnimalSpecies.All.Where(s => !s.Unique).Where(pick).ToArray();
             var species = options[cellRng.Next(options.Length)];
 
             var tiles = cell.AllTiles().Where(t => species.CanStandOn(t.Surface) && !t.HasCave).ToList();

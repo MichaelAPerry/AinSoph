@@ -10,7 +10,7 @@ Nothing phones home. No subscription. No server you don't control.
 
 *[Watch the trailer](docs/demo/trailer.mp4) (68 s, narrated) · [scripted demo tour](docs/demo/tour.mp4) · [screenshots](docs/demo/). See [Demos](#demos).*
 
-> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 39-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
+> **Status: playable alpha (0.1.0).** The world, survival, animals, NPCs, the rib, the Council, sound, menus and first-time hints all run end to end, with a 49-check self-test in CI. See [Project Status](#project-status). Try it without downloading anything large: `godot --path . -- --demo`.
 
 ## Download
 
@@ -221,11 +221,34 @@ A **skill** or **item** becomes a *gift* its petitioner holds. The model cannot 
 | Mending | Reap (substitute) | A lost fight wounds you instead of killing you, once a day | heal, herb, mend, bandage |
 | Kinship | Talk | Predators pass you by half the time | tame, shepherd, calm, beast |
 
-A petition that fits none of them is granted as **lore**: it is named, held and remembered, and the game says plainly that it changes nothing you can measure. Gifts show on the action bar beside the six primitives (hover for details) and are saved with you. NPCs are told what their own gifts do, and what yours do when you speak to them. A second gift with the same effect adds nothing. A character who dies loses their gifts; laws stay.
+A petition that fits none of them goes to the gods (below). Gifts show on the action bar beside the six primitives (hover for details) and are saved with you. NPCs are told what their own gifts do, and what yours do when you speak to them. A second gift with the same effect adds nothing. A character who dies loses their gifts; laws stay.
 
 Gifts work for NPCs too. Strength, Endurance, Shelter, Mending and Kinship apply to them, and a traveller's gifts cross a route with them.
 
 Sleeping matters: a predator cannot reach anyone asleep in a cave (or sheltered by a gift), and anyone asleep in the open defends at half strength.
+
+### The gods' choice
+
+Some petitions go past the eight gifts:
+- one that leaves the choice to the gods ("Gods' choice", "Let the gods decide", "Thy will");
+- one that asks for the world itself to change ("Make a beast that hunts by night", "Turn the desert to forest", "Send a flood upon the valley");
+- an approved skill or item that fits no gift.
+
+If the Council approves, the model is asked once more, as the gods' will, what enters the world. It may answer the petition, bend it, or surprise the petitioner. It picks one act, and everything inside that act is its own invention:
+
+| Act | What the gods decide | What happens |
+|---|---|---|
+| Creature | Name, look, predator/prey/neutral, land/air/water, edible, strength, how many, near or far | A new species is made, appears in the world, and is found in land discovered from then on |
+| Enemy | Name, look, strength | One named beast that stalks the nearest being and strikes when beside it. It never respawns |
+| Land | What it becomes (forest, sea, desert, river…), how large, near or far | The tiles change, and stay changed |
+| Provision | What appears, edible or not, how many | Food for a day, or relics, around the petitioner |
+| Season | A long night, famine or plenty, and for how long | Night falls; the manna spoils and stops; or it falls twice over |
+| Gift | Its name and which of the eight effects | As above |
+| Law | Its name and words | Every NPC lives by it |
+
+Every act ends with a **proclamation**, one sentence of scripture saying what was done. The player sees it, and so does every NPC: the gods' latest deeds go into NPC prompts, so they react to the new beast, the flood or the long night as their nature would. If the model's reply holds no act but the gods said something, their words are kept as an **omen**. That is story only, and nothing measurable changes. A petition that names the land in it becomes that land change.
+
+What the model asks for, the engine checks. Only these acts exist, every number is capped (at most 6 creatures, 12 provisions, land 4 tiles across, a season of 24 hours), all words pass the content filter, the altar and caves are never changed, and the sea never rises under a living being. NPC petitions reach the gods too, at most once every 30 minutes. Everything the gods make is saved with the world.
 
 ---
 
@@ -336,7 +359,7 @@ Pass these after `--` (e.g. `godot --path . -- --demo`), or set them in **Projec
 | `--shots=<dir>` | With `--demo-tour`: save a screenshot at each step. |
 | `--trailer` | Plays the staged, captionless run the trailer is cut from, at 1080p, and prints `TRAILER-MARK` lines. Uses a throwaway world. |
 | `--grant-rib` | Testing only: grant the rib now instead of after 168 hours of play. |
-| `--selftest` | Runs 39 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
+| `--selftest` | Runs 49 automated checks in a throwaway world, prints PASS/FAIL, exits 0 or 1. Scripted voices unless `--model=` is given. |
 
 If no model is found at all, the game starts in demo mode automatically instead of stopping at the boot screen.
 
@@ -393,8 +416,10 @@ All game code is C# under `scripts/`. There are no hand-built scenes beyond two 
 | `scripts/LLM/ContentFilter.cs` | Prompt rule + word-list filter (`data/blocklist.txt`) on everything the AI says |
 | `scripts/Audio/Sound.cs` | Music, ambience and effects on their own buses (`assets/audio/`, made by `tools/make-sounds.py`) |
 | `scripts/Demo/DemoDirector.cs` | The captioned `--demo-tour` walkthrough and screenshot capture |
+| `scripts/Council/GodsChoice.cs`, `scripts/GameRoot.Divine.cs` | The gods' choice: the model picks an act (creature, enemy, land, provision, season, gift, law); the engine checks it, does it and saves it |
+| `scripts/Skills/Gift.cs` | The eight gift effects and how a petition is read as one |
 | `scripts/Demo/TrailerDirector.cs` | The staged `--trailer` run the trailer is cut from |
-| `scripts/Demo/SelfTest.cs` | `--selftest`: 39 automated checks of the whole loop, exit code 0/1 |
+| `scripts/Demo/SelfTest.cs` | `--selftest`: 49 automated checks of the whole loop, exit code 0/1 |
 | `scripts/Player/` | The player character, play-time tracking and the rib, `TribeManager` (spouse, weekly progeny, lineage) |
 | `scripts/UI/` | Renderer (biome ground shader + Kenney 1-bit tiles), HUD, primitive menu, dialogue, portraits, boot screen, character and spouse creation, routes, Esc menu and settings, first-time hints |
 | `scripts/Data/` | Save files (JSON under `user://saves/`), NPC tick queue, routes |
@@ -416,7 +441,7 @@ Saves and settings live in `%APPDATA%\AinSoph` on Windows and `~/.local/share/Ai
 - **People** — four founding travellers in every new world; NPCs that think, move, talk in character, remember, and take their creations to the Council; dialogue.
 - **Animals** — 30 species from ITEMS.md; they wander, eat manna, hunt and flee; clean ones are food.
 - **The rib** — earned after a week of play, named and described by you; weekly children with lineage.
-- **The Council** — three seats, parables, 2-of-3 votes. Approved rules become laws every NPC lives by; approved skills and items become gifts with real effects (sight, the sea, strength, endurance, shelter, mending, kinship with beasts) for players and NPCs alike.
+- **The Council** — three seats, parables, 2-of-3 votes. Approved rules become laws every NPC lives by; approved skills and items become gifts with real effects (sight, the sea, strength, endurance, shelter, mending, kinship with beasts) for players and NPCs alike; and the gods' choice can make new creatures and enemies, change the land, send food or seasons, all saved with the world.
 - **Routes** — send travellers to another world and receive theirs.
 - **Polish** — music, ambience and sound effects; Esc menu with settings; first-time hints; survival status on screen; an output filter on everything the AI says.
 

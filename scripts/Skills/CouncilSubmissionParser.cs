@@ -26,6 +26,16 @@ public class CouncilSubmissionParser
 
         var text = prayerText.Trim();
 
+        // Leaving it to the gods, or asking for the world itself to change: the gods choose what enters
+        if (GodsChoice.IsDeferral(text) || GodsChoice.IsWorldShaping(text))
+            return new CouncilSubmission
+            {
+                Type        = "choice",
+                Name        = GodsChoice.IsDeferral(text) ? "The Gods' Choice" : NameOf(text),
+                Description = text,
+                Effect      = "the gods decide what enters the world: a creature, an enemy, the land, food, a season, a gift or a law",
+            };
+
         // Must have at least a name/description of the thing
         // Minimum meaningful prayer: 10 characters, more than 2 words
         var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);

@@ -148,28 +148,80 @@ namespace AinSoph.Demo
             Check("a lion strikes a player asleep in the open", StrikesSleepingPlayer(root));
 
             var kill0 = player.KillNumber;
-            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Spear Craft", Description = "a spear for hunting" });
+            await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "skill", Name = "Spear Craft", Description = "a spear for hunting" });
             Check("Strength raises the kill number", player.KillNumber == kill0 + Gifts.StrengthBonus, $"{kill0} → {player.KillNumber}");
 
-            root.ApplyPlayerGrant(new CouncilSubmission { Type = "item", Name = "Lantern", Description = "a lantern to see by at night" });
+            await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "item", Name = "Lantern", Description = "a lantern to see by at night" });
             Check("Sight widens what you see", player.Gifts.SightBonusCells == 1);
 
-            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Bread Baking", Description = "bake bread to endure hunger" });
+            await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "skill", Name = "Bread Baking", Description = "bake bread to endure hunger" });
             var fed30h = new SurvivalTracker(now.AddHours(-30)) { HungerHours = () => player.Gifts.HungerHours };
             var plain30h = new SurvivalTracker(now.AddHours(-30));
             fed30h.RecordEat(now.AddHours(-30)); plain30h.RecordEat(now.AddHours(-30));
             Check("Endurance lengthens the hunger window", !fed30h.Tick(now).DiedOfStarvation && plain30h.Tick(now).DiedOfStarvation);
 
-            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Fire Making", Description = "fire to keep my family warm" });
+            await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "skill", Name = "Fire Making", Description = "fire to keep my family warm" });
             Check("Shelter keeps a sleeper in the open safe", !StrikesSleepingPlayer(root));
 
-            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Healing", Description = "herbs to mend wounds" });
+            await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "skill", Name = "Healing", Description = "herbs to mend wounds" });
             Check("Mending is ready once a day", player.Gifts.CanMend(now) &&
                 (player.Gifts.LastMendedUtc = now) == now && !player.Gifts.CanMend(now.AddHours(1)) && player.Gifts.CanMend(now.AddHours(25)));
             player.Gifts.LastMendedUtc = null;
 
-            root.ApplyPlayerGrant(new CouncilSubmission { Type = "skill", Name = "Old Songs", Description = "the songs of the old days" });
-            Check("a petition that fits no effect is kept as lore", player.Gifts.All.Last().Effect == GiftEffect.Lore);
+            var omensBefore = GameRoot.Omens.Count;
+            var songs = await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "skill", Name = "Old Songs", Description = "the songs of the old days" });
+            Check("a petition no gift fits goes to the gods", GameRoot.Omens.Count == omensBefore + 1, songs);
+
+            // ── The gods' choice ──────────────────────────────────────────
+            var parser = new CouncilSubmissionParser();
+            Check("petitions left to the gods reach them",
+                parser.Parse("Gods' choice")?.Type == "choice" &&
+                parser.Parse("Make a beast that hunts by night")?.Type == "choice" &&
+                parser.Parse("Grant me a skill to tame beasts")?.Type == "skill");
+            Check("the gods' words are tamed",
+                GodsChoice.Parse("{\"act\":\"creature\",\"name\":\"x\",\"count\":999,\"strength\":500}") is { Count: 6, Strength: 95 } &&
+                GodsChoice.Parse("no json here") == null &&
+                GodsChoice.Parse("{\"act\":\"unmake the world\",\"name\":\"all\"}") == null);
+
+            DivineAct Act(string json) => GodsChoice.Parse(json)!;
+            string Do(string json) => root.ApplyDivineAct(Act(json), player.Id, player.Gifts, player.TileX, player.TileY);
+
+            var made = Do("{\"act\":\"creature\",\"name\":\"ashwing\",\"look\":\"grey wings\",\"nature\":\"prey\",\"habitat\":\"air\",\"edible\":true,\"count\":3}");
+            Check("the gods can make a new creature", AnimalSpecies.Get("ashwing") is { Divine: true } &&
+                GameRoot.LiveAnimals.Any(a => a.Name == "Ashwing"), made);
+
+            var loosed = Do("{\"act\":\"enemy\",\"name\":\"The Pale Hound\",\"look\":\"white as bone\",\"strength\":75}");
+            var hound = GameRoot.LiveAnimals.FirstOrDefault(a => a.Name == "Pale Hound");
+            int Dist(AnimalBrain a) => System.Math.Max(System.Math.Abs(a.TileX - player.TileX), System.Math.Abs(a.TileY - player.TileY));
+            var far0 = hound == null ? 0 : Dist(hound);
+            for (int i = 0; i < 3; i++) root.HuntWithEnemies();
+            Check("an enemy hunts", hound != null && hound.Species is { Hunts: true, Unique: true } && Dist(hound) < far0,
+                  hound == null ? loosed : $"{far0} → {Dist(hound)}");
+            if (hound != null) { GameRoot.LiveAnimals.Remove(hound); GameRoot.Scene?.RemoveNpc(hound.AnimalId); }
+
+            var land = Do("{\"act\":\"land\",\"becomes\":\"forest\",\"size\":2,\"where\":\"near\"}");
+            Check("the gods can change the land", land.Contains("forest"), land);
+
+            var itemsBefore = GameRoot.Items!.All.Count(i => i.Type == "provision");
+            Do("{\"act\":\"provision\",\"name\":\"loaves\",\"edible\":true,\"count\":4}");
+            Check("the gods can send food", GameRoot.Items.All.Count(i => i.Type == "provision" && i.Edible) > itemsBefore);
+
+            Do("{\"act\":\"season\",\"kind\":\"long night\",\"hours\":1}");
+            Check("the gods can send a long night", WorldClock.IsNight());
+            Season.Set(null, null);
+
+            Do("{\"act\":\"law\",\"name\":\"The Law of the Stranger\",\"text\":\"A traveller who asks for bread may not be refused.\"}");
+            Check("the gods can write a law", GameRoot.Laws.Any(l => l.Name == "The Law of the Stranger"));
+
+            Check("NPCs hear what the gods did", NpcPromptBuilder.BuildSystemPrompt(GameRoot.LiveNpcs[0].Decan).Contains("Ashwing") ||
+                NpcPromptBuilder.WorldOmens.Count == 3);
+
+            root.SaveNow();
+            using (var w = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "world.json"))))
+                Check("the gods' work is saved with the world",
+                    w.RootElement.GetProperty("species").EnumerateArray().Any(x => x.GetProperty("name").GetString() == "Ashwing") &&
+                    w.RootElement.GetProperty("terrain").GetArrayLength() > 0 &&
+                    w.RootElement.GetProperty("omens").GetArrayLength() >= 6);
 
             root.SaveNow();
             using (var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "player.json"))))

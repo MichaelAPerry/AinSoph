@@ -163,6 +163,13 @@ namespace AinSoph
         }
 
         /// <summary>Redraw the map around the player (e.g. after manna spawns or an item is eaten).</summary>
+        /// <summary>The land itself changed: forget cached ground colours, then redraw.</summary>
+        public void RefreshTerrain()
+        {
+            _renderer.InvalidateGround();
+            RefreshMap();
+        }
+
         public void RefreshMap()
         {
             _renderer.Refresh(_playerTile);

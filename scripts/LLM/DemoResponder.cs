@@ -23,6 +23,10 @@ public static class DemoResponder
         // A short pause so the world feels like it is thinking
         await Task.Delay(Next(250, 700), ct);
 
+        // The gods' choice lists its acts as {"act": ...} schemas
+        if (systemPrompt.Contains("{\"act\":\"creature\""))
+            return GodsAct(userMessage);
+
         // Council seat prompts end with a {"seat": ...} schema; NPC prompts merely mention the Council
         if (systemPrompt.Contains("\"seat\":"))
             return CouncilSeat(systemPrompt, userMessage);
@@ -31,6 +35,32 @@ public static class DemoResponder
             return Dialogue(userMessage);
 
         return NpcDecision(userMessage);
+    }
+
+    // ── The gods' choice ──────────────────────────────────────────────────
+
+    private static readonly string[] ScriptedActs =
+    {
+        "{\"act\":\"creature\",\"name\":\"ashwing\",\"look\":\"grey wings like cinders\",\"nature\":\"prey\",\"habitat\":\"air\",\"edible\":true,\"strength\":12,\"count\":4,\"where\":\"near\",\"proclamation\":\"And from the ashes rose a bird, and it was given to the hungry.\"}",
+        "{\"act\":\"enemy\",\"name\":\"The Pale Hound\",\"look\":\"white as bone, eyes like coals\",\"strength\":75,\"proclamation\":\"A hound was loosed upon the plain, and it does not sleep.\"}",
+        "{\"act\":\"land\",\"becomes\":\"forest\",\"size\":3,\"where\":\"near\",\"proclamation\":\"The ground remembered the seed, and a forest stood where there was none.\"}",
+        "{\"act\":\"provision\",\"name\":\"loaves\",\"edible\":true,\"count\":5,\"proclamation\":\"Bread was laid upon the stones, and none asked who baked it.\"}",
+        "{\"act\":\"season\",\"kind\":\"long night\",\"hours\":2,\"proclamation\":\"The sun was held back, and the people learned the value of a fire.\"}",
+        "{\"act\":\"gift\",\"name\":\"Night Eyes\",\"effect\":\"sight\",\"proclamation\":\"To the one who asked, the dark was made a little thinner.\"}",
+        "{\"act\":\"law\",\"name\":\"The Law of the Stranger\",\"text\":\"A traveller who asks for bread may not be refused.\",\"proclamation\":\"Remember that you, too, crossed from somewhere.\"}",
+    };
+
+    private static string GodsAct(string userMessage)
+    {
+        var p = userMessage.ToLowerInvariant();
+        int i = p.Contains("enemy") || p.Contains("monster") ? 1
+              : p.Contains("creature") || p.Contains("animal") || p.Contains("beast") ? 0
+              : p.Contains("forest") || p.Contains("land") ? 2
+              : p.Contains("bread") || p.Contains("food") ? 3
+              : p.Contains("night") || p.Contains("dark") ? 4
+              : p.Contains("law") ? 6
+              : Next(0, ScriptedActs.Length);
+        return ScriptedActs[i];
     }
 
     // ── Council ───────────────────────────────────────────────────────────
