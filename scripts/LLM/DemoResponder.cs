@@ -23,6 +23,10 @@ public static class DemoResponder
         // A short pause so the world feels like it is thinking
         await Task.Delay(Next(250, 700), ct);
 
+        // The Council's judge: a law is broken if the deed shares its key word
+        if (systemPrompt.Contains("{\"broken\":"))
+            return Judge(userMessage);
+
         // The gods' choice lists its acts as {"act": ...} schemas
         if (systemPrompt.Contains("{\"act\":\"creature\""))
             return GodsAct(userMessage);
@@ -35,6 +39,26 @@ public static class DemoResponder
             return Dialogue(userMessage);
 
         return NpcDecision(userMessage);
+    }
+
+    // ── The judge ─────────────────────────────────────────────────────────
+
+    private static readonly string[] DeedWords = { "kill", "attack", "wound", "ate", "eat" };
+
+    private static string Judge(string userMessage)
+    {
+        var parts = userMessage.Split("The deed:");
+        if (parts.Length < 2) return "{\"broken\": \"\"}";
+        var deed = parts[1].ToLowerInvariant();
+        foreach (var line in parts[0].Split('\n').Where(l => l.StartsWith("- ")))
+        {
+            var law = line[2..];
+            var name = law.Split(':')[0].Trim();
+            var text = law.ToLowerInvariant();
+            if (DeedWords.Any(w => deed.Contains(w) && text.Contains(w)))
+                return JsonSerializer.Serialize(new { broken = name });
+        }
+        return "{\"broken\": \"\"}";
     }
 
     // ── The gods' choice ──────────────────────────────────────────────────

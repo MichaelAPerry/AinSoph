@@ -275,3 +275,11 @@ Petitions that leave the choice to the gods, that ask for the world itself to ch
 
 When no act holds together, the gods' words are kept as an omen, which is story only. See `scripts/Council/GodsChoice.cs` and `scripts/GameRoot.Divine.cs`.
 
+### LAWS AND THE PLAYER
+
+Laws bind everyone. NPCs are given them in their prompts. The player's deeds (reaping a being, eating) are judged against them: a law that forbids something and touches the deed is put to the model as the Council's judge. A broken law brands the player for a day, and the Council will not hear a lawbreaker until it lifts.
+
+### THE FIRST ENCOUNTER
+
+Within five minutes of a new life, the Council sends a messenger. Its form and its words are chosen by the model. It tells the soul, in parable and then plainly, that there is one hidden altar, which way it lies, and what prayer there can do.
+

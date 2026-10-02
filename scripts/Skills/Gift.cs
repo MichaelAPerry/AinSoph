@@ -29,6 +29,8 @@ public class Gift
     public string     Kind        { get; set; } = "skill"; // "skill" | "item"
     public GiftEffect Effect      { get; set; }
     public DateTime   GrantedUtc  { get; set; }
+    /// <summary>Set when the gift is a carried item: dropping or giving it away takes the gift with it.</summary>
+    public string?    ItemId      { get; set; }
 
     /// <summary>"Fire Making — sleep safely in the open"</summary>
     public string Label => Effect == GiftEffect.Lore ? $"{Name} — lore" : $"{Name} — {Gifts.Describe(Effect)}";

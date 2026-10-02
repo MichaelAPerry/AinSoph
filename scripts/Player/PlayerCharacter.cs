@@ -27,6 +27,18 @@ public class PlayerCharacter
     // What the Council has granted — each gift changes a rule (see Gift.cs)
     public GiftSet Gifts { get; } = new();
 
+    // What you carry (GameRoot.Pack.cs) — at most MaxCarried things
+    public List<Data.CarriedItem> Carried { get; } = new();
+    public const int MaxCarried = 8;
+
+    // A broken law (GameRoot.Laws.cs): the Council will not hear you until a day has passed
+    public string?   LawBroken    { get; set; }
+    public DateTime? LawBrokenUtc { get; set; }
+    public bool IsBranded(DateTime nowUtc) => LawBrokenUtc is { } t && (nowUtc - t).TotalHours < 24;
+
+    // The Council's first encounter (GameRoot.Encounter.cs) — once per life
+    public bool EncounterDone { get; set; }
+
     // Inventory
     public List<string> InventoryItemIds { get; } = new();
 

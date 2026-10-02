@@ -130,6 +130,22 @@ public class PlayerSaveData
     // What the Council has granted — each one changes a rule (Gift.cs)
     public List<AinSoph.Skills.Gift> Gifts { get; set; } = new();
     public DateTime? LastMendedUtc { get; set; }
+
+    // What the player carries, any law they broke, and whether the Council has come to them
+    public List<CarriedItem> Carried { get; set; } = new();
+    public string?   LawBroken     { get; set; }
+    public DateTime? LawBrokenUtc  { get; set; }
+    public bool      EncounterDone { get; set; }
+}
+
+/// <summary>A thing carried: the item as it lay in the world, and when it was picked up (food still spoils).</summary>
+public class CarriedItem
+{
+    public ItemSaveData Item        { get; set; } = new();
+    public DateTime     PickedUpUtc { get; set; }
+
+    public bool Spoiled(DateTime nowUtc) =>
+        Item.LifespanHours is { } life && (Item.AgeHours ?? 0) + (nowUtc - PickedUpUtc).TotalHours >= life;
 }
 
 /// <summary>

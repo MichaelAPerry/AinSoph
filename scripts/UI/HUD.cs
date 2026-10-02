@@ -209,6 +209,20 @@ namespace AinSoph.UI
             _ribBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.RibRequested); };
             _actionBarPanel.AddChild(_ribBtn);
 
+            // ── PACK button — what you carry (also I) ──
+            var packBtn = new Button();
+            packBtn.Text     = "PACK";
+            packBtn.Size     = new Vector2(64, 38);
+            packBtn.Position = new Vector2(w - 318, (barH - 38) / 2f);
+            packBtn.TooltipText = "What you carry (I)";
+            packBtn.AddThemeStyleboxOverride("normal",  MakeFlatStyle(new Color(0.10f, 0.10f, 0.08f)));
+            packBtn.AddThemeStyleboxOverride("hover",   MakeFlatStyle(new Color(0.20f, 0.19f, 0.14f)));
+            packBtn.AddThemeStyleboxOverride("pressed", MakeFlatStyle(new Color(0.16f, 0.15f, 0.11f)));
+            packBtn.AddThemeFontSizeOverride("font_size", 10);
+            packBtn.AddThemeColorOverride("font_color", new Color(0.6f, 0.58f, 0.48f));
+            packBtn.Pressed += () => { AinSoph.Audio.Sound.Play("click"); EmitSignal(SignalName.PackRequested); };
+            _actionBarPanel.AddChild(packBtn);
+
             // ── ROUTES button — far right of action bar ──
             var routesBtn = new Button();
             routesBtn.Text     = "ROUTES";
@@ -380,5 +394,6 @@ namespace AinSoph.UI
         [Signal] public delegate void RoutesOpenRequestedEventHandler();
         [Signal] public delegate void SleepRequestedEventHandler();
         [Signal] public delegate void RibRequestedEventHandler();
+        [Signal] public delegate void PackRequestedEventHandler();
     }
 }

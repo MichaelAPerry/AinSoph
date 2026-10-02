@@ -60,14 +60,15 @@ public class TribuneCouncil
 
         foreach (var prompt in SeatPrompts)
         {
-            var raw = await _llm.InferAsync(prompt + "\n\n" + ContentFilter.PromptRule, petition, maxTokens: 256,
-                cancellationToken: cancellationToken);
-
-            var response = ParseSeatResponse(raw);
-            if (response is not null)
-                verdict.Responses.Add(response);
-            else
+            // A small model sometimes answers out of shape; a seat gets a second breath before it is silent
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                var raw = await _llm.InferAsync(prompt + "\n\n" + ContentFilter.PromptRule, petition, maxTokens: 256,
+                    cancellationToken: cancellationToken);
+                var response = ParseSeatResponse(raw);
+                if (response is not null) { verdict.Responses.Add(response); break; }
                 GD.PrintErr($"TribuneCouncil: failed to parse seat response: {raw}");
+            }
         }
 
         GD.Print($"TribuneCouncil: {submission.Name} — " +

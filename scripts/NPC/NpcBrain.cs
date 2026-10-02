@@ -255,7 +255,7 @@ public class NpcBrain
     /// Does not interrupt creation — the NPC responds while continuing.
     /// </summary>
     public async Task<string> RespondToDialogueAsync(string playerMessage,
-        SituationContext situation, CancellationToken ct = default, string speakerGifts = "")
+        SituationContext situation, CancellationToken ct = default, string speakerGifts = "", string speakerStanding = "")
     {
         var systemPrompt = NpcPromptBuilder.BuildSystemPrompt(Decan, BrokenMove, BrokenSee, BrokenHear, BrokenTalk, IsForeigner, Gifts.Summary());
 
@@ -271,6 +271,7 @@ public class NpcBrain
         var fullUserMessage =
             $"{context}\n\nYour current activity: {currentActivity}\n\n" +
             (string.IsNullOrEmpty(speakerGifts) ? "" : $"The one speaking to you holds gifts from the Council: {speakerGifts}.\n\n") +
+            (string.IsNullOrEmpty(speakerStanding) ? "" : $"What you know of them: {speakerStanding}\n\n") +
             $"Someone speaks to you: \"{playerMessage}\"\n\n" +
             $"Respond in character. Speak as yourself. Return plain text — no JSON.";
 

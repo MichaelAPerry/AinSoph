@@ -170,7 +170,9 @@ namespace AinSoph.Demo
 
             var omensBefore = GameRoot.Omens.Count;
             var songs = await root.ApplyPlayerGrantAsync(new CouncilSubmission { Type = "skill", Name = "Old Songs", Description = "the songs of the old days" });
-            Check("a petition no gift fits goes to the gods", GameRoot.Omens.Count == omensBefore + 1, songs);
+            // Scripted gods always act; the real model may stay silent, and then the grant is kept as lore
+            Check("a petition no gift fits goes to the gods", GameRoot.Omens.Count == omensBefore + 1 ||
+                  (!GameRoot.IsDemo && songs.Contains("lore")), songs);
 
             // ── The gods' choice ──────────────────────────────────────────
             var parser = new CouncilSubmissionParser();
@@ -232,6 +234,50 @@ namespace AinSoph.Demo
             gifted.Gifts.Add(new Gift { Name = "Net Weaving", Effect = GiftEffect.Endurance });
             Check("an NPC's gifts reach its prompt", NpcPromptBuilder.BuildSystemPrompt(gifted.Decan,
                 gifts: gifted.Gifts.Summary()).Contains("Net Weaving"));
+
+            // ── Carrying ──────────────────────────────────────────────────
+            var lantern = GameRoot.Items!.Spawn("Lantern", "crafted", player.TileX + 1, player.TileY, description: "a lantern to see by");
+            var bread   = GameRoot.Items.Spawn("Loaf", "provision", player.TileX, player.TileY + 1, edible: true, lifespanHours: 24);
+            var giftsBefore = player.Gifts.All.Count;
+            Check("Move picks a thing up", root.PickUp(lantern) && root.PickUp(bread) && player.Carried.Count == 2 &&
+                  !GameRoot.Items.All.Any(i => i.Id == lantern.Id));
+            Check("a carried thing works as a gift", player.Gifts.All.Count == giftsBefore + 1 &&
+                  player.Gifts.All.Last().ItemId == lantern.Id);
+            var ateAt = player.Survival.LastAteUtc;
+            root.PackEat(player.Carried.First(c => c.Item.Id == bread.Id));
+            Check("carried food can be eaten", player.Survival.LastAteUtc > ateAt && player.Carried.Count == 1);
+            root.PackDrop(player.Carried[0]);
+            Check("a dropped thing returns to the ground and takes its gift", player.Carried.Count == 0 &&
+                  GameRoot.Items.All.Any(i => i.Name == "Lantern") && player.Gifts.All.Count == giftsBefore);
+            var neighbour = GameRoot.LiveNpcs.First(n => !n.IsForeigner);
+            neighbour.SetTile(player.TileX - 1, player.TileY);
+            root.PickUp(GameRoot.Items.All.First(i => i.Name == "Lantern"));
+            var receiver = root.NpcBeside(); // the nearest of those beside you
+            root.PackGive(player.Carried[0]);
+            Check("a thing can be given to whoever is beside you", receiver != null && player.Carried.Count == 0 &&
+                  receiver.Gifts.All.Any(g => g.Name == "Lantern"), receiver?.Name ?? "no one beside");
+
+            // ── Laws bind the player ──────────────────────────────────────
+            GameRoot.AddLaw("The Life of Beasts", "No one may kill an animal.", player.Id);
+            var broken = await LawJudge.JudgeAsync(GameRoot.Llm, GameRoot.Laws, $"{player.Name} killed a deer, an animal.");
+            Check("a deed is judged against the laws", broken?.Name == "The Life of Beasts", broken?.Name ?? "none");
+            var innocent = await LawJudge.JudgeAsync(GameRoot.Llm, GameRoot.Laws, $"{player.Name} walked to the river.");
+            Check("an innocent deed breaks no law", innocent == null, innocent?.Name ?? "none");
+            root.Brand(broken ?? GameRoot.Laws.Last());
+            Check("a lawbreaker is not heard by the Council", player.IsBranded(System.DateTime.UtcNow) &&
+                  root.CouncilRefusal()?.Contains("does not hear") == true);
+            player.LawBrokenUtc = System.DateTime.UtcNow.AddHours(-25);
+            Check("the brand lifts after a day", root.CouncilRefusal() == null);
+
+            // ── The Council's first encounter ─────────────────────────────
+            player.EncounterDone = false;
+            await root.SendEncounterAsync();
+            Check("the Council sends a messenger to a new life", player.EncounterDone && GameRoot.Scene!.DialogueOpen &&
+                  GameRoot.Scene.DialogueSpeech.Contains("altar"));
+            GameRoot.Scene.CloseDialogue();
+
+            Check("the screen scales with the window",
+                  ProjectSettings.GetSetting("display/window/stretch/mode").AsString() == "canvas_items");
 
             // ── Talk ──────────────────────────────────────────────────────
             var npc = GameRoot.LiveNpcs.First(n => !n.BrokenTalk);

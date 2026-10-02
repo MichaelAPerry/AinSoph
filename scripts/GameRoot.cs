@@ -88,6 +88,7 @@ public partial class GameRoot : Node
                : Player.Gifts.Has(GiftEffect.Shelter) ? "Sleeping sheltered" : "Sleeping exposed")
             : $"Ate {Ago(ate)} ago · Slept {Ago(slept)} ago";
         if (Player.Survival.IsInCave && !Player.Survival.IsSleeping) text += " · In a cave";
+        if (Player.IsBranded(now)) text += " · Lawbreaker";
         _worldScene.SetSurvivalStatus(text, ate >= Player.Gifts.HungerHours - 4 || slept >= 20);
     }
 
@@ -112,12 +113,6 @@ public partial class GameRoot : Node
         _instance = this;
         GD.Print($"Ain Soph {AinSoph.UI.GameSettings.Version} — booting");
 
-        // The trailer renders at 1080p with the 720p layout: tiles land on whole pixels (×1.5)
-        if (HasArg("--trailer"))
-        {
-            GetTree().Root.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
-            GetTree().Root.ContentScaleSize = new Vector2I(1280, 720);
-        }
 
         // Sound and settings first, so the boot screen already has music
         AddChild(new AinSoph.Audio.Sound());
@@ -147,6 +142,7 @@ public partial class GameRoot : Node
         GD.Print("GameRoot: initializing save manager...");
         // The demo tour always starts from a fresh, throwaway world
         var trailer  = HasArg("--trailer");
+        _encountersEnabled = !trailer && !HasArg("--demo-tour") && !HasArg("--selftest");
         var tour     = HasArg("--demo-tour") || trailer; // the trailer is a staged tour
         var selfTest = HasArg("--selftest");
         var saveDir  = ProjectSettings.GlobalizePath(tour ? TourSavePath : selfTest ? TestSavePath : SaveSubPath);
@@ -243,6 +239,10 @@ public partial class GameRoot : Node
             Player.RestoreTribe(playerData.HasRib, playerData.SpouseNpcId, playerData.ProgenyIds);
             foreach (var skill in playerData.SkillIds) Player.SkillIds.Add(skill);
             Player.Gifts.Restore(playerData.Gifts, playerData.LastMendedUtc);
+            Player.Carried.AddRange(playerData.Carried);
+            Player.LawBroken     = playerData.LawBroken;
+            Player.LawBrokenUtc  = playerData.LawBrokenUtc;
+            Player.EncounterDone = playerData.EncounterDone;
             GD.Print($"GameRoot: player '{Player.Name}' loaded — {Player.AccumulatedPlayHours:F1}h played" +
                      (Player.HasSpouse ? ", has spouse" : Player.HasRib ? ", rib earned" : ""));
         }
@@ -350,6 +350,7 @@ public partial class GameRoot : Node
             scene.SetGifts(Player.Gifts.All);
             ShowAllAnimals();
             scene.RibRequested += OnRibRequested;
+            scene.PackRequested += OpenPack;
             AddChild(new AinSoph.UI.GameMenu());
             if (!tour && !selfTest) AddChild(new AinSoph.UI.Hints()); // the tour has its own captions
             if (IsDemo) scene.ShowWorldText("Demo mode — the voices you hear are scripted.");
@@ -401,6 +402,7 @@ public partial class GameRoot : Node
         {
             _statusTimer = 1.0;
             UpdateSurvivalStatus();
+            SpoilPack();
         }
 
         // The rib — announce it once when earned; the RIB button stays until it is used
@@ -425,6 +427,9 @@ public partial class GameRoot : Node
             HuntWithEnemies();
             ListenForPredators();
         }
+
+        // The Council's first encounter, within five minutes of a new life
+        TickEncounter();
 
         // Keep the NPC queue moving — each NPC decides itself whether it is due to think
         _npcPumpTimer -= delta;
@@ -478,8 +483,9 @@ public partial class GameRoot : Node
     {
         if (Player == null) return;
 
-        // Drop corpse — body persists in world
+        // Drop corpse — body persists in world, and what was carried falls beside it
         Items?.SpawnBody(Player.Name, Player.TileX, Player.TileY);
+        SpillPack(Player.TileX, Player.TileY);
 
         // Release any cave claim
         ReleaseCave(Player.TileX, Player.TileY, Player.Id);
@@ -1076,6 +1082,10 @@ public partial class GameRoot : Node
             SkillIds     = Player.SkillIds.ToList(),
             Gifts        = Player.Gifts.All.ToList(),
             LastMendedUtc = Player.Gifts.LastMendedUtc,
+            Carried      = Player.Carried.ToList(),
+            LawBroken    = Player.LawBroken,
+            LawBrokenUtc = Player.LawBrokenUtc,
+            EncounterDone = Player.EncounterDone,
 
             // Rib — play time must survive restarts or a week of play never adds up
             AccumulatedPlayHours = Player.TotalPlayHours,
@@ -1572,6 +1582,14 @@ public partial class GameRoot : Node
             return;
         }
 
+        // Move on a thing beside you → pick it up
+        if (skill == Skills.SkillType.Move && item != null)
+        {
+            if (dist > 1) { _worldScene.ShowWorldText("It is out of reach."); return; }
+            PickUp(item);
+            return;
+        }
+
         // Talk → open dialogue; each line the player speaks gets an in-character reply
         if (skill == Skills.SkillType.Talk && npc != null)
         {
@@ -1594,16 +1612,19 @@ public partial class GameRoot : Node
             {
                 _worldScene.ShowWorldText($"You wound {npc.Name}, but {MendingName(npc.Gifts)} keeps them alive.");
                 _worldScene.ShowNpcSpeech(npc.NpcId, "!");
+                JudgeDeed($"wounded {npc.Name}, a person, trying to kill them.");
             }
             else if (kill.AttackerSucceeds)
             {
                 _worldScene.ShowWorldText($"You reap {npc.Name}. The body remains.");
                 npc.Kill();
+                JudgeDeed($"killed {npc.Name}, a person.");
             }
             else
             {
                 _worldScene.ShowWorldText($"{npc.Name} resists. Neither of you falls.");
                 _worldScene.ShowNpcSpeech(npc.NpcId, "!");
+                JudgeDeed($"attacked {npc.Name}, a person, but failed to kill them.");
             }
             return;
         }
@@ -1619,6 +1640,7 @@ public partial class GameRoot : Node
                     ? $"You reap the {animal.Name}. Its body is clean — reap it again to eat."
                     : $"You reap the {animal.Name}. Its body is unclean.");
                 animal.Kill();
+                JudgeDeed($"killed a {animal.Name}, an animal.");
             }
             else
             {
@@ -1643,7 +1665,11 @@ public partial class GameRoot : Node
         // All other primitives → resolve and show world text
         var ateBefore = Player.Survival.LastAteUtc;
         var result = await Interactions.ResolveAsync(req, _cts.Token);
-        if (Player != null && Player.Survival.LastAteUtc > ateBefore) AinSoph.Audio.Sound.Play("eat");
+        if (Player != null && Player.Survival.LastAteUtc > ateBefore)
+        {
+            AinSoph.Audio.Sound.Play("eat");
+            JudgeDeed($"ate {req.TargetName}.");
+        }
         if (!string.IsNullOrEmpty(result.WorldText))
             _worldScene.ShowWorldText(result.WorldText);
         if (skill == Skills.SkillType.Reap && item != null)
@@ -1662,7 +1688,8 @@ public partial class GameRoot : Node
         _worldScene.SetDialogueSpeech("…");
         try
         {
-            var reply = await npc.RespondToDialogueAsync(text, BuildNpcSituation(npc), _cts.Token, Player?.Gifts.Summary() ?? "");
+            var reply = await npc.RespondToDialogueAsync(text, BuildNpcSituation(npc), _cts.Token,
+                                                         Player?.Gifts.Summary() ?? "", PlayerStanding());
             reply = reply.Trim();
             if (reply.Length > 1 && reply[0] == '"' && reply[^1] == '"') reply = reply[1..^1];
             if (reply.Length == 0) reply = "…";
@@ -1691,6 +1718,13 @@ public partial class GameRoot : Node
     private async void OnAltarPetition(string petition)
     {
         if (_worldScene == null || Council == null || Player == null) return;
+
+        // A lawbreaker is not heard until a day has passed
+        if (CouncilRefusal() is { } refusal)
+        {
+            _worldScene.SetDialogueSpeech(refusal);
+            return;
+        }
 
         _worldScene.SetDialogueSpeech("The Council deliberates…");
 

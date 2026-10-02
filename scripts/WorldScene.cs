@@ -41,6 +41,7 @@ namespace AinSoph
 
         /// <summary>The player pressed RIB.</summary>
         public event System.Action? RibRequested;
+        public event System.Action? PackRequested;
 
         // ── Child nodes ───────────────────────────────────────────────────
         private Camera2D        _camera;
@@ -231,6 +232,12 @@ namespace AinSoph
         public override void _UnhandledInput(InputEvent ev)
         {
             if (_dialogue.Visible || InputLocked || MenuOpen) return;
+            if (ev is InputEventKey { Pressed: true, Echo: false, Keycode: Key.I })
+            {
+                PackRequested?.Invoke();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
             if (ev is not InputEventMouseButton mb || !mb.Pressed) return;
 
             var worldPos   = GetGlobalMousePosition();
@@ -339,6 +346,9 @@ namespace AinSoph
         }
 
         /// <summary>Called by GameRoot with the actual NPC data + LLM response.</summary>
+        public void OpenVision(string name, int tile, Color tint, string text, System.Action<string> onSpeak) =>
+            _dialogue.OpenVision(name, tile, tint, text, onSpeak);
+
         public void OpenNpcDialogueFull(string npcId, string name, int decanId, int seed,
                                         string openingLine, System.Action<string> onSpeak)
         {
@@ -466,6 +476,9 @@ namespace AinSoph
 
             _hud.Connect(HUD.SignalName.RibRequested,
                 Callable.From(() => RibRequested?.Invoke()));
+
+            _hud.Connect(HUD.SignalName.PackRequested,
+                Callable.From(() => PackRequested?.Invoke()));
 
             // World text — oblique/environmental responses, fades out above action bar
             var hudLayer = new CanvasLayer();

@@ -253,29 +253,48 @@ namespace AinSoph.UI
             _portraitViewport.AddChild(portrait);
         }
 
-        private void BuildAltarPortrait()
+        private void BuildAltarPortrait() =>
+            BuildGlyphPortrait(TileRegistry.AltarTile, Colors.White, new Color(0.55f, 0.55f, 1f, 0.25f));
+
+        /// <summary>A tile at 16× scale centred in the portrait, over a soft halo of the same shape.</summary>
+        private void BuildGlyphPortrait(int tile, Color tint, Color halo)
         {
             ClearPortrait();
-
-            // Render altar tile at 16× scale centred in the viewport, over a soft halo
             var centre = new Vector2(_portraitViewport.Size.X / 2f, _portraitViewport.Size.Y / 2f);
 
             var glow = new Sprite2D();
-            glow.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.AltarTile));
+            glow.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(tile));
             glow.Material = TileRegistry.CutoutMaterial;
             glow.Scale    = Vector2.One * 22;
             glow.TextureFilter = CanvasItem.TextureFilterEnum.Nearest;
             glow.Position = centre;
-            glow.Modulate = new Color(0.55f, 0.55f, 1f, 0.25f);
+            glow.Modulate = halo;
             _portraitViewport.AddChild(glow);
 
             var sprite = new Sprite2D();
-            sprite.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(TileRegistry.AltarTile));
+            sprite.Texture  = GD.Load<Texture2D>(TileRegistry.TilePath(tile));
             sprite.Material = TileRegistry.CutoutMaterial;
             sprite.Scale    = Vector2.One * 16;
             sprite.Position = centre;
+            sprite.Modulate = tint;
             sprite.TextureFilter = CanvasItem.TextureFilterEnum.Nearest;
             _portraitViewport.AddChild(sprite);
+        }
+
+        /// <summary>A vision: something the Council sent, shown as a glowing sign rather than a face.</summary>
+        public void OpenVision(string name, int tile, Color tint, string text, Action<string> onSubmit)
+        {
+            _mode     = Mode.NPC;
+            _npcId    = string.Empty;
+            _onSubmit = onSubmit;
+            _speakerName.Text = name.ToUpper();
+            SetSpeech(text);
+            BuildGlyphPortrait(tile, tint, new Color(tint.R, tint.G, tint.B, 0.3f));
+            _inputPrompt.Text = "> SPEAK :";
+            _inputField.PlaceholderText = "say something...";
+            _inputField.Clear();
+            Visible = true;
+            _inputField.GrabFocus();
         }
 
         private void ClearPortrait()
